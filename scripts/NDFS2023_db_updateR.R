@@ -95,45 +95,50 @@ wqpoint <- merge(wqpoint, NDFS_site_df[, c("site_code", "continuous_number")],
 
 save(wqpoint, file = "data/NDFS2023_wqpoint.Rdata")
 
-# Download Lisbon weir cdec data ------------------------------------------
+# Download discrete lab wq ------------------------------------------------
 
-# ADD other CDEC parameters at LIS and RVB
+wqlab <- data.frame()
+for(discrete in na.omit(NDFS_site_df$discrete_number)){
+  print(paste(discrete, NDFS_site_df[NDFS_site_df$discrete_number %in% discrete,"site_code"]))
+  wqlab <- rbind(wqlab, ImportDiscreteLab(discrete))
+}
+wqlab <- wqlab[wqlab$sample_date > as.POSIXct("2023-1-1"),]
 
-LIS <- downloadCDEC(site_no = "LIS", parameterCd = 20, startDT = "2023-1-1", endDT = "2023-12-1")
+save(wqlab, file = "data/NDFS2023_wqlab.Rdata")
 
-save(LIS, file = "data/NDFS2023_Lisbon_weir_flow.Rdata")
+# Download CDEC continuous WQ data ----------------------------------------
 
-# Download NWIS data at Toe -----------------------------------------------
-# ADD Cache Slough a S Liberty Island NR Rio Vista CA - 11455315
-# Cache Slough AB Ryer Island Ferry NR Rio Vista CA - 11455385
-
-site_no = "11455140"
 startDT = "2023-01-01" 
-endDT = "2023-10-01"
+endDT = "2023-12-31"
+
+cdec_sensors <- data.frame("Sensor" = c(100, 221, 62, 61, 25, 28, 20),
+                           "Description" = c("Conductivity", "Turbidity", "pH", "DO_mgl", "Temp_C", "CHL_a", "Flow"))
+
+wqcont_cdec <- data.frame()
+for(site in c("LIS", "RVB")){
+  for(parm in cdec_sensors$Sensor){
+    print(paste(site, parm))
+    wqcont_cdec <- rbind(wqcont_cdec, downloadCDEC(site_no = site, parameterCd = parm, startDT = startDT , endDT = endDT))
+  }
+}
+
+save(wqcont_cdec, file = "data/NDFS2023_wqcont_cdec.Rdata")
+
+# Download NWIS continuous wq data ----------------------------------------
 
 paramsdf <- data.frame("parameterCd" = c("32316", "00060", "72137", "00400", 
                                          "00095", "00010", "63680", "00300"),
                        "parameterLabel" = c("Chlorophyll", "Discharge", "Discharge_tf", "pH", 
                                             "SPC", "Temp_C", "Turb_FNU", "DO_mgl"))
 
-parameters <- c(
-  "32316", #Chlorophyll fluorescence (fChl), water, micrograms per liter as chlorophyll
-  "00060", #Discharge, cubic feet per second
-  "72137", #Discharge, tidally filtered, cubic feet per second
-  "00400", #pH, water, unfiltered, field, standard units
-  "00095", #Specific conductance, water, unfiltered, microsiemens per centimeter at 25 degrees Celsius
-  "00010", #Temperature, water, degrees Celsius
-  "00300", #Dissolved oxygen, water, unfiltered, milligrams per liter
-  "63680" #Turbidity, water, formazin nephelometric units (FNU)
-)
-
 ##janky for-loop, replace with vectorized apply function?
 datparams <- data.frame()
-
-for(i in parameters){
-  print(i)
-  tempdat <- downloadNWIS(site_no, i, startDT, endDT)
-  datparams <- rbind(datparams, tempdat)
+for(site in c("11455140", "11455315", "11455385")){
+  for(i in paramsdf$parameterCd){
+    print(paste(site, i))
+    tempdat <- downloadNWIS(site, i, startDT, endDT)
+    datparams <- rbind(datparams, tempdat)
+  }
 }
 
 datparams <- merge(datparams, paramsdf, by = "parameterCd", all.x = T)
@@ -146,6 +151,6 @@ datparams <- datparams[is.na(datparams$parameterLabel) == F &
                          is.na(datparams$Datetime) == F &
                          is.na(datparams$Param_val) == F,]
 
-TOE <- datparams
+wqcont_nwis <- datparams
 
-save(TOE, file = "data/NDFS2023_TOE_params.Rdata")
+save(wqcont_nwis, file = "data/NDFS2023_wqcont_nwis.Rdata")
