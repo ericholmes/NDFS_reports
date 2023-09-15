@@ -103,3 +103,46 @@ LIS <- downloadCDEC(site_no = "LIS", parameterCd = 20, startDT = "2023-1-1", end
 
 save(LIS, file = "data/NDFS2023_Lisbon_weir_flow.Rdata")
 
+##Download NWIS data at Toe
+site_no = "11455140"
+startDT = "2023-01-01" 
+endDT = "2023-10-01"
+
+paramsdf <- data.frame("parameterCd" = c("32316", "00060", "72137", "00400", 
+                                         "00095", "00010", "63680", "00300"),
+                       "parameterLabel" = c("Chlorophyll", "Discharge", "Discharge_tf", "pH", 
+                                            "SPC", "Temp_C", "Turb_FNU", "DO_mgl"))
+
+parameters <- c(
+  "32316", #Chlorophyll fluorescence (fChl), water, micrograms per liter as chlorophyll
+  "00060", #Discharge, cubic feet per second
+  "72137", #Discharge, tidally filtered, cubic feet per second
+  "00400", #pH, water, unfiltered, field, standard units
+  "00095", #Specific conductance, water, unfiltered, microsiemens per centimeter at 25 degrees Celsius
+  "00010", #Temperature, water, degrees Celsius
+  "00300", #Dissolved oxygen, water, unfiltered, milligrams per liter
+  "63680" #Turbidity, water, formazin nephelometric units (FNU)
+)
+
+##janky for-loop, replace with vectorized apply function?
+datparams <- data.frame()
+
+for(i in parameters){
+  print(i)
+  tempdat <- downloadNWIS(site_no, i, startDT, endDT)
+  datparams <- rbind(datparams, tempdat)
+}
+
+datparams <- merge(datparams, paramsdf, by = "parameterCd", all.x = T)
+
+datparams$Param_val <- as.numeric(datparams$Param_val)
+
+datparams <- datparams[!(datparams$parameterLabel == "pH" & datparams$Param_val < 6),]
+
+datparams <- datparams[is.na(datparams$parameterLabel) == F &
+                         is.na(datparams$Datetime) == F &
+                         is.na(datparams$Param_val) == F,]
+
+TOE <- datparams
+
+save(TOE, file = "data/NDFS2023_TOE_params.Rdata")
