@@ -4,7 +4,6 @@ library(WDLimportr)
 
 source("scripts/NDFS2023_Useful_functions.R")
 
-
 site_name <- c("BL5 -Below Toe Drain", "Toe Drain@ I-80", "Liberty at S End", 
                "Toe Drain YB LISBON", "Ridge Cut Slough", "Toe Drain at Rd. 22",
                "Rominger Bridge", "	RVB - Rio Vista", "RYI - Cache Slough",
@@ -64,8 +63,8 @@ wqcont <- merge(wqcont, NDFS_site_df[, c("site_code", "continuous_number")],
 
 save(wqcont, file = "data/NDFS2023_wqcont.Rdata")
 
-
 # Download discrete WDL data ----------------------------------------------
+
 wqpoint <- data.frame()
 
 for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
@@ -96,14 +95,18 @@ wqpoint <- merge(wqpoint, NDFS_site_df[, c("site_code", "continuous_number")],
 
 save(wqpoint, file = "data/NDFS2023_wqpoint.Rdata")
 
+# Download Lisbon weir cdec data ------------------------------------------
 
-##Download Lisbon weir cdec data
+# ADD other CDEC parameters at LIS and RVB
 
 LIS <- downloadCDEC(site_no = "LIS", parameterCd = 20, startDT = "2023-1-1", endDT = "2023-12-1")
 
 save(LIS, file = "data/NDFS2023_Lisbon_weir_flow.Rdata")
 
-##Download NWIS data at Toe
+# Download NWIS data at Toe -----------------------------------------------
+# ADD Cache Slough a S Liberty Island NR Rio Vista CA - 11455315
+# Cache Slough AB Ryer Island Ferry NR Rio Vista CA - 11455385
+
 site_no = "11455140"
 startDT = "2023-01-01" 
 endDT = "2023-10-01"

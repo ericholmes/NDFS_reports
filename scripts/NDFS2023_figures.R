@@ -1,8 +1,6 @@
 ## NDFS 2023 analysis script
 
-
 # Load libraries ----------------------------------------------------------
-
 
 library(tidyverse)
 library(ggh4x)
@@ -10,7 +8,7 @@ library(ggh4x)
 # Load data ---------------------------------------------------------------
 
 load("data/NDFS2023_TOE_params.Rdata")
-load()
+load("data/NDFS2023_wqcont.Rdata")
 
 # Get column names from working WQ data
 header = readxl::read_excel("data/YBFMP_WQ_Data_WORKING_20221006.xlsx", skip = 1) %>% colnames()
@@ -85,9 +83,12 @@ png(paste("figures/NDFS2023_Fig3_wq%03d.png", sep = ""),
 
 ggplot(ndmerge[ndmerge$variable != "Zoop_Code",], aes(y = value, x = dist, color = date, group = date)) + 
   geom_line() + geom_point() + scale_x_reverse() + scale_color_viridis_d() +
-  facet_wrap(variable ~ ., scales = "free") + theme_bw() + labs(y = "Parameter value", x = "Distance from Rio Vista")
+  facet_wrap(variable ~ ., scales = "free") + theme_bw() + labs(y = "Parameter value", x = "Distance from Rio Vista (km)")
 
 dev.off()
+
+# Bryte water quality -----------------------------------------------------
+
 
 # Zooplankton score -------------------------------------------------------
 
@@ -97,7 +98,7 @@ png(paste("figures/NDFS2023_Fig4_zoop%03d.png", sep = ""),
 ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,], 
        aes(y = value, x = dist, fill = date, color = date)) + 
   # geom_bar(stat = "identity", position = "dodge", width = 2) + 
-  geom_jitter(height = 0) + scale_x_reverse() + labs(y = "Zoop score", x = "Sample date") +
+  geom_jitter(height = 0) + scale_x_reverse() + labs(y = "Zoop score", x = "Distance from Rio Vista (km)") +
   geom_line(stat = "smooth", se = F, method = "loess", span = .6) +
   scale_color_viridis_d() + scale_fill_viridis_d() + 
   # facet_grid(transect ~ .) + 
@@ -109,7 +110,7 @@ ndmerge$stafac <- factor(ndmerge$station_name,
 ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,], 
        aes(y = value, x = date, fill = date, color = date)) + 
   theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  geom_bar(stat = "identity", show.legend = F) + labs(y = "Zoop score", x = "Sample date") +
+  geom_bar(stat = "identity", show.legend = F) + labs(y = "Zoop score", x = "Distance from Rio Vista (km)") +
   # geom_line(stat = "smooth", se = F, method = "loess", span = .6) +
   scale_color_viridis_d() + scale_fill_viridis_d() +
   facet_wrap(stafac ~ .)
@@ -117,5 +118,30 @@ ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,],
 dev.off()
 
 # Continuous data plotting ------------------------------------------------
+data.frame(Variable = c("Water_Temperature", "Electrical_Conductivity_at_25C", "Dissolved_Oxygen", 
+                        "Dissolved_Oxygen_Percentage", "pH", "Turbidity", "Chlorophyll", 
+                        "Fluorescent_Dissolved_Organic_Matter"),
+           Varname = c("W. Temp (C)", "SPC (")
+)
 
-ggplot()
+
+
+png(paste("figures/NDFS2023_Fig5_Continuous_wq%03d.png", sep = ""), 
+    height = 6.5, width = 6.5, unit = "in", res = 1000)
+
+
+ggplot(wqcont[wqcont$Datetime > as.POSIXct("2023-7-1") & 
+                is.na(wqcont$site_code) == F & is.na(wqcont$Datetime) == F &
+              wqcont$Variable %in% c("Water_Temperature", "Electrical_Conductivity_at_25C", "Dissolved_Oxygen", 
+                                     "pH", "Turbidity", "Chlorophyll", 
+                                     "Fluorescent_Dissolved_Organic_Matter"),], 
+       aes(x = Datetime, y = Value)) + geom_line() + theme_bw() +
+  facet_grid(Variable ~ site_code, scales = "free_y") + 
+  scale_x_datetime(breaks = "2 weeks", date_labels = "%b-%d")
+
+dev.off()
+
+
+# Predictive model --------------------------------------------------------
+
+# Zoop score as response variable, Explanatory variables: Do range, Turb, CHL, etc.
