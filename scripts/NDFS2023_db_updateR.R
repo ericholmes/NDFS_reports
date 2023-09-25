@@ -36,6 +36,7 @@ NDFS_site_df <- data.frame(site_name, site_code, discrete_number, continuous_num
 wqcont <- data.frame()
 
 for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
+  print(StationNumber)
   for(Parameter in c("Water_Temperature", 
                      "Electrical_Conductivity_at_25C",
                      "Dissolved_Oxygen",
@@ -58,42 +59,42 @@ for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
   }
 }
 
-wqcont <- merge(wqcont, NDFS_site_df[, c("site_code", "continuous_number")], 
+wqcont_wdl <- merge(wqcont, NDFS_site_df[, c("site_code", "continuous_number")], 
                  by.x = "Station", by.y = "continuous_number", all.x = T)
 
-save(wqcont, file = "data/NDFS2023_wqcont.Rdata")
+save(wqcont_wdl, file = "data/NDFS2023_wqcont_wdl.Rdata")
 
 # Download discrete WDL data ----------------------------------------------
-
-wqpoint <- data.frame()
-
-for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
-  for(Parameter in c("Water_Temperature", 
-                     "Electrical_Conductivity_at_25C",
-                     "Dissolved_Oxygen",
-                     "Dissolved_Oxygen_Percentage",
-                     "pH",
-                     "Turbidity",
-                     "Chlorophyll",
-                     "Fluorescent_Dissolved_Organic_Matter")){
-    print(paste("Station:", StationNumber, "Parameter:", Parameter))
-    try(temp <- read.csv(paste0("https://wdlstorageaccount.blob.core.windows.net/continuous/",
-                                StationNumber, "/por/", StationNumber, "_", Parameter, "_Raw.csv"), skip = 2))
-    temp <- temp[, 1:2]
-    colnames(temp) <- c("Datetime", "Value")
-    temp$Station <- StationNumber
-    temp$Variable <- Parameter
-    temp$Datetime <- as.POSIXct(temp$Datetime, format = "%m/%d/%Y %H:%M:%S")
-    wqpoint <- rbind(wqpoint, temp[temp$Datetime >= as.POSIXct("2023-01-01 00:00") &
-                                   temp$Datetime <= as.POSIXct("2023-12-31 23:59"),])
-    
-  }
-}
-
-wqpoint <- merge(wqpoint, NDFS_site_df[, c("site_code", "continuous_number")], 
-                by.x = "Station", by.y = "continuous_number", all.x = T)
-
-save(wqpoint, file = "data/NDFS2023_wqpoint.Rdata")
+# 
+# wqpoint <- data.frame()
+# 
+# for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
+#   for(Parameter in c("Water_Temperature", 
+#                      "Electrical_Conductivity_at_25C",
+#                      "Dissolved_Oxygen",
+#                      "Dissolved_Oxygen_Percentage",
+#                      "pH",
+#                      "Turbidity",
+#                      "Chlorophyll",
+#                      "Fluorescent_Dissolved_Organic_Matter")){
+#     print(paste("Station:", StationNumber, "Parameter:", Parameter))
+#     try(temp <- read.csv(paste0("https://wdlstorageaccount.blob.core.windows.net/continuous/",
+#                                 StationNumber, "/por/", StationNumber, "_", Parameter, "_Raw.csv"), skip = 2))
+#     temp <- temp[, 1:2]
+#     colnames(temp) <- c("Datetime", "Value")
+#     temp$Station <- StationNumber
+#     temp$Variable <- Parameter
+#     temp$Datetime <- as.POSIXct(temp$Datetime, format = "%m/%d/%Y %H:%M:%S")
+#     wqpoint <- rbind(wqpoint, temp[temp$Datetime >= as.POSIXct("2023-01-01 00:00") &
+#                                    temp$Datetime <= as.POSIXct("2023-12-31 23:59"),])
+#     
+#   }
+# }
+# 
+# wqpoint <- merge(wqpoint, NDFS_site_df[, c("site_code", "continuous_number")], 
+#                 by.x = "Station", by.y = "continuous_number", all.x = T)
+# 
+# save(wqpoint, file = "data/NDFS2023_wqpoint.Rdata")
 
 # Download discrete lab wq ------------------------------------------------
 
@@ -118,7 +119,7 @@ wqcont_cdec <- data.frame()
 for(site in c("LIS", "RVB")){
   for(parm in cdec_sensors$Sensor){
     print(paste(site, parm))
-    wqcont_cdec <- rbind(wqcont_cdec, downloadCDEC(site_no = site, parameterCd = parm, startDT = startDT , endDT = endDT))
+    try(wqcont_cdec <- rbind(wqcont_cdec, downloadCDEC(site_no = site, parameterCd = parm, startDT = startDT , endDT = endDT)))
   }
 }
 
