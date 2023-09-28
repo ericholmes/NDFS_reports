@@ -112,12 +112,16 @@ save(wqlab, file = "data/NDFS2023_wqlab.Rdata")
 startDT = "2023-01-01" 
 endDT = "2023-12-31"
 
-cdec_sensors <- data.frame("Sensor" = c(100, 221, 62, 61, 25, 28, 20),
-                           "Description" = c("Conductivity", "Turbidity", "pH", "DO_mgl", "Temp_C", "CHL_a", "Flow"))
+cdec_sensors <- data.frame("parameterCd" = c(100, 221, 62, 61, 
+                                             25, 28, 20, 27,
+                                             100.1),
+                           "parameterLabel" = c("Conductivity", "Turbidity", "pH", "Dissolved_Oxygen", 
+                                                "Water_Temperature", "Chlorophyll", "Discharge", "Turbidity",
+                                                "Electrical_Conductivity_at_25C"))
 
 wqcont_cdec <- data.frame()
 for(site in c("LIS", "RVB")){
-  for(parm in cdec_sensors$Sensor){
+  for(parm in cdec_sensors$parameterCd){
     print(paste(site, parm))
     try(wqcont_cdec <- rbind(wqcont_cdec, downloadCDEC(site_no = site, parameterCd = parm, startDT = startDT , endDT = endDT)))
   }
@@ -130,7 +134,10 @@ save(wqcont_cdec, file = "data/NDFS2023_wqcont_cdec.Rdata")
 paramsdf <- data.frame("parameterCd" = c("32316", "00060", "72137", "00400", 
                                          "00095", "00010", "63680", "00300"),
                        "parameterLabel" = c("Chlorophyll", "Discharge", "Discharge_tf", "pH", 
-                                            "SPC", "Temp_C", "Turb_FNU", "DO_mgl"))
+                                            "Electrical_Conductivity_at_25C", "Water_Temperature", "Turbidity", "Dissolved_Oxygen"))
+
+nwis_sitesdf <-data.frame(Site_no = c("11455140", "11455315", "11455385"),
+                          site_code = c("TOE", "LIB", "RYI"))
 
 ##janky for-loop, replace with vectorized apply function?
 datparams <- data.frame()
@@ -155,3 +162,45 @@ datparams <- datparams[is.na(datparams$parameterLabel) == F &
 wqcont_nwis <- datparams
 
 save(wqcont_nwis, file = "data/NDFS2023_wqcont_nwis.Rdata")
+
+# Merge Continuous WQ datasets --------------------------------------------
+
+##Prep CDEC data
+str(wqcont_cdec)
+wqcont_cdec$Param_val <- as.numeric(wqcont_cdec$Param_val)
+##Convert temps from Fahrenheit to Celcius
+wqcont_cdec$Param_val <- ifelse(wqcont_cdec$parameterCd == "25", 
+                                      (wqcont_cdec$Param_val-32)*5/9, wqcont_cdec$Param_val)
+##Pivot to wide format so temps can be used to calculate SPC
+wqcont_cdec_spc <- pivot_wider(wqcont_cdec, id_cols = c("Site_no", "Datetime"),  
+                              names_from = "parameterCd", values_from = "Param_val")
+##Convert EC to SPC
+wqcont_cdec_spc$Param_val <- wqcont_cdec_spc$"100" / (1 + 0.02*(wqcont_cdec_spc$"25"-25))
+##Create SPC parameterCd
+wqcont_cdec_spc$parameterCd <- 100.1
+##Bind data
+wqcont_cdec <- rbind(wqcont_cdec, wqcont_cdec_spc[, c("Site_no", "Datetime", "parameterCd", "Param_val")])
+      
+wqcont_cdec_merge <- merge(wqcont_cdec, cdec_sensors, by = "parameterCd", all.x = T)
+wqcont_cdec_merge$site_code <- wqcont_cdec_merge$Site_no
+wqcont_cdec_merge$source <- "cdec"
+
+##Prep NWIS data
+str(wqcont_nwis)
+wqcont_nwis_merge <- merge(wqcont_nwis, nwis_sitesdf, by = "Site_no", all.x = T)
+wqcont_nwis_merge$source <- "nwis"
+dput(colnames(wqcont_nwis_merge))
+
+##Prep WDL data
+str(wqcont_wdl)
+wqcont_wdl$source <- "wdl"
+colnames(wqcont_wdl) <- c("Station", "Datetime", "Param_val", "parameterLabel",  "site_code", "source")
+unique(wqcont_wdl$parameterLabel)
+
+##Merge continuous data sources
+wqcont_all <- rbind(wqcont_cdec_merge[,c("source", "site_code", "Datetime", "parameterLabel", "Param_val")],
+                    wqcont_nwis_merge[,c("source", "site_code", "Datetime", "parameterLabel", "Param_val")],
+                    wqcont_wdl[,c("source", "site_code", "Datetime", "parameterLabel", "Param_val")])
+wqcont_all$Param_val <- as.numeric(wqcont_all$Param_val)
+
+save(wqcont_all, file = "data/NDFS2023_wqcont_all.Rdata")
