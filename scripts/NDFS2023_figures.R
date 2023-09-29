@@ -1,7 +1,7 @@
 ## NDFS 2023 analysis script
 
 ##Should output be saved?
-saveOutput <- T
+saveOutput <- F
 
 # Load libraries ----------------------------------------------------------
 
@@ -255,7 +255,87 @@ if(saveOutput == T){dev.off()}
 
 # Dissolved oxygen daily range --------------------------------------------
 
-
+# 
+# # Prepare data fields
+# wqcont$Datetime <- as.POSIXct(wqcont$sample_date, format = "%Y-%m-%d %H:%M:%S")
+# wqcont$Date <- as.Date(wqcont$Datetime)
+# wqcont$Year <- format(wqcont$Date, format = "%Y")
+# 
+# # Compute daily max, min, mean dissolved oxygen values for each site
+# doply <- wqcont %>% filter(variable == "DO_conc") %>% group_by(Date, Year, cage_id, habitat_type) %>% 
+#   summarize(maxDOmgl = max(value, na.rm = T), minDOmgl = min(value, na.rm = T), meanDOmgl = mean(value, na.rm = T)) %>% 
+#   ungroup()
+# 
+# # Compute daily max, min, mean water temperature values for each site
+# tempply <- wqcont %>% filter(variable == "TEMP") %>% group_by(Date, cage_id) %>% 
+#   summarize(maxTemp = max(value, na.rm = T), minTemp = min(value, na.rm = T), meanTemp = mean(value, na.rm = T)) %>% 
+#   ungroup()
+# 
+# # merge summarized DO and temp values
+# doboply <- merge(doply, tempply, by = c("Date", "cage_id"), all = T)
+# rm(doply, tempply)
+# 
+# # Compute daily do and temp range
+# doboply$DOmglrange <- doboply$maxDOmgl - doboply$minDOmgl
+# doboply$temprange <- doboply$maxTemp - doboply$minTemp
+# 
+# # Change date format to POSIXct for compatibility with the wqcont dataframe
+# doboply$Datetime <- as.POSIXct(doboply$Date)
+# 
+# # Concatenate to create unique id year combinations
+# doboply$IDyear <- paste(doboply$cage_id, doboply$Year)
+# wqcont$IDyear <- paste(wqcont$cage_id, wqcont$Year)
+# 
+# # Create empty caegories to be filled with smoothed daily values
+# wqcont$minDOmglmod <- NA; wqcont$maxDOmglmod <- NA; wqcont$meanDOmglmod <- NA
+# wqcont$minTempmod <- NA; wqcont$maxTempmod <- NA; wqcont$meanTempmod <- NA
+# 
+# # Calculate LOESS smoothed min, max and mean values from daily data for each site and year combo
+# for(i in unique(doboply$IDyear)){
+#   
+#   print(i)
+#   
+#   if(sum(doboply[doboply$IDyear %in% i, "maxDOmgl"], na.rm = T) > 0){
+#     
+#     minDOmglmod <- loess(minDOmgl ~ as.numeric(Datetime), doboply[doboply$IDyear %in% i, ], span = .25)
+#     maxDOmglmod <- loess(maxDOmgl ~ as.numeric(Datetime), doboply[doboply$IDyear %in% i, ], span = .25)
+#     meanDOmglmod <- loess(meanDOmgl ~ as.numeric(Datetime), doboply[doboply$IDyear %in% i, ], span = .25)
+#     
+#     wqcont$minDOmglmod <- ifelse(wqcont$IDyear == i, predict(minDOmglmod, wqcont$Datetime), wqcont$minDOmglmod)
+#     wqcont$maxDOmglmod <- ifelse(wqcont$IDyear == i, predict(maxDOmglmod, wqcont$Datetime), wqcont$maxDOmglmod)
+#     wqcont$meanDOmglmod <- ifelse(wqcont$IDyear == i, predict(meanDOmglmod, wqcont$Datetime), wqcont$meanDOmglmod)
+#   }
+#   
+#   minTempmod <- loess(minTemp ~ as.numeric(Datetime), doboply[doboply$IDyear %in% i, ], span = .25)
+#   maxTempmod <- loess(maxTemp ~ as.numeric(Datetime), doboply[doboply$IDyear %in% i, ], span = .25)
+#   meanTempmod <- loess(meanTemp ~ as.numeric(Datetime), doboply[doboply$IDyear %in% i, ], span = .25)
+#   
+#   wqcont$minTempmod <- ifelse(wqcont$IDyear == i, predict(minTempmod, wqcont$Datetime), wqcont$minTempmod)
+#   wqcont$maxTempmod <- ifelse(wqcont$IDyear == i, predict(maxTempmod, wqcont$Datetime), wqcont$maxTempmod)
+#   wqcont$meanTempmod <- ifelse(wqcont$IDyear == i, predict(meanTempmod, wqcont$Datetime), wqcont$meanTempmod)
+#   
+#   rm(minTempmod, maxTempmod, meanTempmod, minDOmglmod, maxDOmglmod, meanDOmglmod)
+# }
+# 
+# # Continuous temp and DO plotting
+# (dobodomglpan <- ggplot(wqcont[wqcont$variable == "DO_conc",], aes(x = Datetime, y = meanDOmglmod, fill = habitat_type, group = cage_id)) +
+#     scale_fill_manual(values = c("Wetland" = "#E31A1C", "Agriculture" = "#FFAA00", "Canal channel" = "#33A02C", "River channel" = "#1F78B4")) +
+#     scale_color_manual(values = c("Wetland" = "#E31A1C", "Agriculture" = "#FFAA00", "Canal channel" = "#33A02C", "River channel" = "#1F78B4")) +
+#     geom_ribbon(aes(ymin = minDOmglmod, ymax = maxDOmglmod), alpha = .2,linetype = 0) + 
+#     geom_line(data = wqcont[wqcont$variable == "DO_conc",], aes(x = Datetime, y = value, color = habitat_type), alpha = .5) + 
+#     geom_line(color = "black", linetype = 2) +
+#     theme_bw() +
+#     labs(x = NULL, y = "Dissolved oxygen (mg/L)") + 
+#     facet_grid(habitat_type ~ Year, scales = "free_x") + theme(legend.position = "none"))
+# 
+# (dobotemp <- ggplot(wqcont[wqcont$variable == "TEMP",], aes(x = Datetime, y = meanTempmod, fill = habitat_type, group = cage_id)) +
+#     scale_fill_manual(values = c("Wetland" = "#E31A1C", "Agriculture" = "#FFAA00", "Canal channel" = "#33A02C", "River channel" = "#1F78B4")) +
+#     scale_color_manual(values = c("Wetland" = "#E31A1C", "Agriculture" = "#FFAA00", "Canal channel" = "#33A02C", "River channel" = "#1F78B4")) +
+#     geom_ribbon(aes(ymin = minTempmod, ymax = maxTempmod), alpha = .2,linetype = 0) + 
+#     geom_line(data = wqcont[wqcont$variable == "TEMP",], aes(x = Datetime, y = value, color = habitat_type), alpha = .5) + 
+#     geom_line(color = "black", linetype = 2) +theme_bw() +
+#     labs(x = NULL, y = "Water temperature (°C)") + facet_grid(habitat_type ~ Year, scales = "free_x") + 
+#     theme(legend.position = "none"))
 
 # WDL continuous data plotting --------------------------------------------
 

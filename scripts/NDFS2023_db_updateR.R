@@ -7,27 +7,32 @@ source("scripts/NDFS2023_Useful_functions.R")
 site_name <- c("BL5 -Below Toe Drain", "Toe Drain@ I-80", "Liberty at S End", 
                "Toe Drain YB LISBON", "Ridge Cut Slough", "Toe Drain at Rd. 22",
                "Rominger Bridge", "	RVB - Rio Vista", "RYI - Cache Slough",
-               "Toe Drain at STTD", "Sacramento River @ Sherwood Harbor")
+               "Toe Drain at STTD", "Sacramento River @ Sherwood Harbor",
+               "Woodland Wastewater", "Davis Wastewater", "Prospect Slough")
 
 site_code <- c("BL5", "I80", "LIB", 
                "LIS", "RCS", "RD22", 
                "RMB", "RVB", "RYI", 
-               "STTD", "SHR")
+               "STTD", "SHR",
+               "WWT", "DWT", "PRS")
 
 discrete_number <- c("B9D81651399", "A0D83441350", "B9D81450411", 
                      "B9D82851352", NA, "A0D84061386",
                      "A0C85051515", "B9D80960412", "B9D81281402",
-                     "A0D82120386", "A0200000")
+                     "A0D82120386", "A0200000",
+                     "A1030000", "A0033300", "B9B81541403")
 
 continuous_number <- c("B9D81651399", "A0D83441350", NA, 
                        "B9156000", NA, "A0D84061386",
                        "A0C85051515", "B91212", NA,
-                       "A0D82120386", NA)
+                       "A0D82120386", NA,
+                       NA, NA, NA)
 
 downstream <- c(TRUE, FALSE, TRUE, 
                 FALSE, FALSE, FALSE, 
                 FALSE, TRUE, TRUE, 
-                FALSE, FALSE)
+                FALSE, FALSE,
+                FALSE, FALSE, TRUE)
 
 NDFS_site_df <- data.frame(site_name, site_code, discrete_number, continuous_number, downstream)
 
