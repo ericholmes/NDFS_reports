@@ -1,7 +1,7 @@
 ## NDFS 2023 analysis script
 
 ##Should output be saved?
-saveOutput <- F
+saveOutput <- T
 
 # Load libraries ----------------------------------------------------------
 
@@ -88,12 +88,13 @@ ndmelt <- reshape2::melt(ndfs23[, c("station_name",  "wdl_sam_collection_date", 
 ndmerge <- merge(ndmelt, stations, by = "station_name", all.x = T)
 ndmerge$value <- as.numeric(ndmerge$value)
 
-ndmerge$date <- ifelse(ndmerge$transect == 1, "6-26", 
-                       ifelse(ndmerge$transect == 2, "7-10", 
-                              ifelse(ndmerge$transect == 3, "7-25", 
-                                     ifelse(ndmerge$transect == 4, "8-08", 
-                                            ifelse(ndmerge$transect == 5, "8-23", 
-                                                   ifelse(ndmerge$transect == 6, "9-05", "9-19"))))))
+ndmerge$date <- ifelse(ndmerge$transect == 1, "06-26", 
+                       ifelse(ndmerge$transect == 2, "07-10", 
+                              ifelse(ndmerge$transect == 3, "07-25", 
+                                     ifelse(ndmerge$transect == 4, "08-08", 
+                                            ifelse(ndmerge$transect == 5, "08-23", 
+                                                   ifelse(ndmerge$transect == 6, "09-05", 
+                                                          ifelse(ndmerge$transect == 7, "09-19", "10-03")))))))
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig3_wq%03d.png", sep = ""), 
     height = 6, width = 7.5, unit = "in", res = 1000)}
