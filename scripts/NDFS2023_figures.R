@@ -34,10 +34,13 @@ stations <- data.frame(station_name = c("RCS", "WWT", "RD22", "DWT", "I80",
                        station_number = c(NA, NA, "A0D84061386", NA, "A0D83441350", 
                                       "B9D82851352", "A0D82120386", "B9D81651399", "B9D81651399", NA,
                                       "B9D81450411", "B9D81281402", "B9D80960412", "A0200000"),
+                       discrete_station_number = c("A0D84761435","A1030000","A0D84061386","A0033300","A0D83441350",
+                                                   "B9D82851352","A0D82120386",NA,"B9D81651399", "B9B81541403",
+                                                   "B9D81450411", "B9D81281402", "B9D80960412", "A0200000"),
                        dist = c(78.71, 64, 62.60, 52, 49.80, 
                                 38.74, 24.21, 24.21, 15.21, 13.00, 
                                 10.67, 7.19, 0, -10))
-
+# dput(NDFS_site_df$discrete_number)
 # Tidally filtered flow at TOE --------------------------------------------
 TOE <- wqcont_nwis[wqcont_nwis$Site_no == "11455140",]
 
@@ -132,8 +135,13 @@ wqlab$week <- format(wqlab$sample_date, format = "%W")
 # Convert week to transect number
 wqlab$transect <- as.character(as.integer(as.factor(wqlab$week)))
 
+unique(wqlab$station_number)
+head(wqlab)
+stations$station_number
+
 # merge longitudinal river mile data with long format wqlab data
-wqlmerge <- merge(wqlab, stations, by = "station_number", all.x = T)
+wqlmerge <- merge(wqlab, stations, by.x = "station_number", 
+                  by.y = "discrete_station_number",all.x = T)
 
 # Convert result to numeric vlaues
 wqlmerge$result <- as.numeric(wqlmerge$result)
