@@ -47,7 +47,8 @@ TOE <- wqcont_nwis[wqcont_nwis$Site_no == "11455140",]
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig2_Toeflow%03d.png", sep = ""), 
     height = 4, width = 6.5, unit = "in", res = 1000)}
 unique(wqcont_all$parameterLabel)
-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1") & wqcont_all$parameterLabel == "Discharge_tf" &
+ggplot(wqcont_all[wqcont_all$Datetime >= as.POSIXct("2023-5-1") & wqcont_all$Datetime <= as.POSIXct("2023-11-1") & 
+                    wqcont_all$parameterLabel == "Discharge_tf" &
                     wqcont_all$site_code == "TOE",],
   # TOE[TOE$parameterLabel == "Discharge_tf" & TOE$$Datetime > as.POSIXct("2023-6-1"),], 
        aes(x = Datetime)) +
@@ -57,6 +58,18 @@ ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1") & wqcont_all$para
 
 if(saveOutput == T){dev.off()}
   
+# Daily average flow at Lisbon --------------------------------------------
+lisflow <- wqcont_all[wqcont_all$site_code == "LIS" & wqcont_all$parameterLabel == "Discharge",]
+lisflow$Date <- as.Date(lisflow$Datetime)
+lisflowply <- lisflow %>% group_by(Date) %>% summarize(meanflow = mean(Param_val))
+
+##Not shSome missing data here during a crucial time
+ggplot(lisflowply[lisflowply$Date > as.POSIXct("2023-5-1"),],
+       aes(x = Date)) +
+  ggh4x::stat_difference(aes(ymin = 0, ymax = meanflow), show.legend = F, alpha = .5) +
+  geom_line(aes(y = meanflow)) + theme_bw() + labs(x = NULL, y = "Tidally filtered discharge (cfs)") +
+  scale_fill_manual(values = c("+" = "skyblue", "-" = "salmon2")) 
+
 # Point water quality plot ------------------------------------------------
 
 # Change zoop code from character to integer format
@@ -100,7 +113,7 @@ ndmerge$date <- ifelse(ndmerge$transect == 1, "06-26",
                                                           ifelse(ndmerge$transect == 7, "09-19", "10-03")))))))
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig3_wq%03d.png", sep = ""), 
-    height = 6, width = 7.5, unit = "in", res = 1000)}
+    height = 6.5, width = 7.5, unit = "in", res = 1000)}
 
 ggplot(ndmerge[ndmerge$variable != "Zoop_Code" & !(ndmerge$station_name %in% c("WWT", "DWT", "SHR")),], 
        aes(y = value, x = dist, color = date, group = date)) + 
@@ -108,7 +121,21 @@ ggplot(ndmerge[ndmerge$variable != "Zoop_Code" & !(ndmerge$station_name %in% c("
   geom_point(data = ndmerge[ndmerge$variable != "Zoop_Code" & ndmerge$station_name %in% c("WWT", "DWT"),], shape = 4) +
   geom_point(data = ndmerge[ndmerge$variable != "Zoop_Code" & ndmerge$station_name %in% c("SHR"),], shape = 1) +
   scale_x_reverse() + scale_color_viridis_d() + 
-  facet_wrap(variable ~ ., scales = "free") + theme_bw() + labs(y = "Parameter value", x = "Distance from Rio Vista (km)")
+  facet_wrap(variable ~ ., scales = "free") + theme_bw() + labs(y = "Parameter value", x = "Distance from Rio Vista (km)") +
+  theme(legend.position = "bottom")
+
+ggplot(ndmerge[!(ndmerge$variable %in% c("Zoop_Code", "water_temp", "do_probe", "microcyst", "ec", "veg_rank")) & 
+                 !(ndmerge$station_name %in% c("WWT", "DWT", "SHR")),], 
+       aes(y = value, x = dist, color = date, group = date)) + 
+  geom_line() + geom_point() + 
+  geom_point(data = ndmerge[!(ndmerge$variable %in% c("Zoop_Code", "water_temp", "do_probe", "microcyst", "ec", "veg_rank")) & 
+                              ndmerge$station_name %in% c("WWT", "DWT"),], shape = 4) +
+  geom_point(data = ndmerge[!(ndmerge$variable %in% c("Zoop_Code", "water_temp", "do_probe", "microcyst", "ec", "veg_rank")) & 
+                              ndmerge$station_name %in% c("SHR"),], shape = 1) +
+  scale_x_reverse() + scale_color_viridis_d() + 
+  facet_wrap(variable ~ ., scales = "free") + theme_bw() + 
+  labs(y = "Parameter value", x = "Distance from Rio Vista (km)", color = "Date") +
+  theme(legend.position = "bottom")
 
 ggplot(ndmerge[ndmerge$variable != "Zoop_Code",], 
        aes(y = value, x = date, color = dist, group = dist)) + 
@@ -117,7 +144,8 @@ ggplot(ndmerge[ndmerge$variable != "Zoop_Code",],
   # geom_point(data = ndmerge[ndmerge$variable != "Zoop_Code" & ndmerge$station_name %in% c("SHR"),], shape = 1) +
   scale_color_viridis_c(option = "A", begin = .05, end = .91) + 
   facet_wrap(variable ~ ., scales = "free") + theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10)) +
-  labs(y = "Parameter value", x = "Date")
+  labs(y = "Parameter value", x = "Date") +
+  theme(legend.position = "bottom")
 
 if(saveOutput == T){dev.off()}
 
@@ -169,6 +197,10 @@ ggplot(wqlmerge[!(wqlmerge$station_name.y %in% c("WWT", "DWT", "SHR")),],
   theme(legend.position = "bottom")
 
 if(saveOutput == T){dev.off()}
+
+## Looping anovas?
+
+
 
 # Zooplankton score -------------------------------------------------------
 
@@ -240,56 +272,176 @@ if(saveOutput == T){png(paste("figures/NDFS2023_Fig6_Continuous_temp%03d.png", s
                         height = 4, width = 6.5, unit = "in", res = 1000)}
 
 ##Find last point in ts to place site label
-wqcont_all <- wqcont_all %>% group_by(site_code, parameterLabel) %>% mutate(maxdate = max(Datetime)) %>% data.frame()
+wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetime <= as.POSIXct("2023-11-1")) %>% 
+  group_by(site_code, parameterLabel) %>% mutate(maxdate = max(Datetime)) %>% data.frame()
 
 ## Water temp
-ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & wqcont_all$source %in% c("cdec") &
+(cwq_wtemp1 <- ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
                     
                     wqcont_all$Datetime > as.POSIXct("2023-5-1"),], 
        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
   labs(x = NULL, y = "Water temperature (C)") + scale_y_continuous(breaks = seq(0,30,2)) + 
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
-  geom_text(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & wqcont_all$source %in% c("cdec") &
+  geom_text(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
-            fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) 
+            fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15))
 # scale_x_datetime(breaks = "2 weeks", date_labels = "%b-%d")
 
+(cwq_wtemp2 <-ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & !(wqcont_all$site_code %in% "I80") &
+                    wqcont_all$Datetime > as.POSIXct("2023-5-1"),], 
+       aes(x = Datetime, y = Param_val, color = dist)) + 
+  geom_line(aes(group = site_code), show.legend = F, alpha = .3) + theme_bw() +
+  geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
+            stat = "smooth", method = "loess", span = .1) + theme_bw() +
+  labs(x = NULL, y = "Water temp (C)") + scale_y_continuous(breaks = seq(0,30,2)) + 
+  scale_color_viridis_c(option = "A", begin = .1, end = .8) +
+  ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & !(wqcont_all$site_code %in% "I80") &
+                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
+            fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) +
+  scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
+  limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))))
+
 ## DO mgl
-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Dissolved_Oxygen" & 
+(cwq_domgl <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Dissolved_Oxygen" & 
                     wqcont_all$source %in% c("cdec", "nwis") &
                      is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
-  labs(x = NULL, y = "Dissolved Oxygen (mg/L)") + scale_y_continuous(breaks = seq(0,30,2)) +
+  labs(x = NULL, y = "DO (mg/L)") + scale_y_continuous(breaks = seq(0,30,2)) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Dissolved_Oxygen" & 
                                                wqcont_all$source %in% c("cdec", "nwis") &
                                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) 
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) +
+  scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))))
+
 ## EC
-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
+(cwq_spc <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
                     wqcont_all$source %in% c("cdec", "nwis") &
                      is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
-  labs(x = NULL, y = "Specific conductivity (uS/cm)") + scale_y_continuous(breaks = seq(0,1000,100)) +
+  labs(x = NULL, y = "SPC (uS/cm)") + scale_y_continuous(breaks = seq(0,1000,100)) +
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
                                 wqcont_all$source %in% c("cdec", "nwis") &
                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) 
-unique(wqcont_all$parameterLabel)
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) +
+  scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1")))) 
 
-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Turbidity" & 
+## Turb 
+(cwq_turb <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Turbidity" & 
                     wqcont_all$source %in% c("cdec", "nwis") &
                     is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
-       aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
-  labs(x = NULL, y = "Turbidity") + scale_y_continuous(breaks = seq(0,1000,100)) +
+       aes(x = Datetime, y = Param_val, color = dist)) + 
+  geom_line(aes(group = site_code), show.legend = F, alpha = .3) + theme_bw() +
+  geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
+            stat = "smooth", method = "loess", span = .1) +
+  labs(x = NULL, y = "Turbidity (NTU)") + 
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
+  coord_cartesian(ylim = c(0,80)) +
+  scale_y_continuous(breaks = seq(0,100,20)) +
+  scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Turbidity" & 
                                                wqcont_all$source %in% c("cdec", "nwis") &
                                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) 
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15))
+
+
+## Chlorophyll
+(cwq_chl <- ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Chlorophyll" & 
+                    is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
+       aes(x = Datetime, y = Param_val, color = dist)) + 
+  geom_line(aes(group = site_code), show.legend = F, alpha = .2) + theme_bw() +
+  geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
+            stat = "smooth", method = "loess", span = .1) +
+  labs(x = NULL, y = "Chl-a (ug/L)") + 
+  scale_color_viridis_c(option = "A", begin = .1, end = .8) +
+  coord_cartesian(ylim = c(0,30)) +
+  scale_y_continuous(breaks = seq(0,100,5)) +
+  scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))) +
+  ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Chlorophyll" & 
+                                               # wqcont_all$source %in% c("cdec", "nwis") &
+                                               wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15))
 
 if(saveOutput == T){dev.off()}
+
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig6_Continuous_temp_panel%03d.png", sep = ""), 
+                        height = 7, width = 6.5, unit = "in", res = 1000, family = "serif")}
+
+cowplot::plot_grid(cwq_wtemp2 + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                   cwq_domgl + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                   cwq_spc + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                   cwq_turb+ theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                   cwq_chl,
+                   ncol = 1, align = "v")
+
+if(saveOutput == T){dev.off()}
+
+ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Chlorophyll" & 
+             is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
+       aes(x = Param_val, fill = dist, color = dist)) + 
+  geom_density(aes(group = site_code), show.legend = F, alpha = .2) + theme_bw() +
+  # geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
+            # stat = "smooth", method = "loess", span = .1) +
+  labs(x = NULL, y = "Chlorophyll-a") + 
+  scale_fill_viridis_c(option = "A", begin = .1, end = .8) +
+  scale_color_viridis_c(option = "A", begin = .1, end = .8)
+
+chl <- wqcont_all[wqcont_all$parameterLabel== "Chlorophyll",]
+chl$Date <- as.Date(chl$Datetime)
+chlply <- chl %>% group_by(Date, dist, site_code) %>% summarize(medchl = median(Param_val))
+
+ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Chlorophyll" & 
+                    is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
+       aes(x = Param_val, y = dist,fill = dist, color = dist)) + 
+  geom_boxplot(aes(group = dist), show.legend = F, alpha = .2) + theme_bw() +
+  # geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
+  # stat = "smooth", method = "loess", span = .1) +
+  labs(x = NULL, y = "Chlorophyll-a") + 
+  scale_fill_viridis_c(option = "A", begin = .1, end = .8) +
+  scale_color_viridis_c(option = "A", begin = .1, end = .8)
+
+ggplot(chlply[chlply$Date > as.POSIXct("2023-6-1"),], 
+       aes(x = medchl, y = dist, fill = dist, color = dist)) + 
+  geom_boxplot(aes(group = dist), show.legend = F, alpha = .2) + theme_bw() +
+  labs(x = NULL, y = "Chlorophyll-a") + 
+  scale_fill_viridis_c(option = "A", begin = .1, end = .8) +
+  scale_color_viridis_c(option = "A", begin = .1, end = .8)
+
+wqcont_all$Date <- as.Date(wqcont_all$Datetime)
+dput(unique(wqcont_all$parameterLabel))
+
+wqcontply <- wqcont_all %>% 
+  filter(parameterLabel %in% c("Electrical_Conductivity_at_25C", "pH", 
+                               "Turbidity", "Dissolved_Oxygen", 
+                               "Fluorescent_Dissolved_Organic_Matter", "Chlorophyll")) %>% 
+  group_by(Date, dist, site_code, parameterLabel) %>% 
+  summarize(medval = median(Param_val))
+
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig6a_Continuous_vars%03d.png", sep = ""), 
+                        height = 4, width = 6.5, unit = "in", res = 1000)}
+
+ggplot(wqcontply[wqcontply$Date > as.POSIXct("2023-6-1"),], 
+       aes(y = medval, x = dist, fill = dist, color = dist)) + 
+  geom_boxplot(aes(group = dist), show.legend = F, alpha = .2) + theme_bw() +
+  labs(x = "Distance from Rio Vista (km)", y = "Parameter value") + scale_x_reverse() +
+  facet_wrap(parameterLabel ~ ., scales = "free_y") +
+  scale_fill_viridis_c(option = "A", begin = .1, end = .8) +
+  scale_color_viridis_c(option = "A", begin = .1, end = .8)
+
+ggplot(wqcontply[wqcontply$Date > as.POSIXct("2023-6-1") & wqcontply$parameterLabel == "Chlorophyll",], 
+       aes(y = medval, x = Date, color = dist, group = dist)) + 
+  geom_line(show.legend = F, alpha = .6) + theme_bw() +
+  labs(x = "Distance from Rio Vista (km)", y = "Parameter value") +
+  facet_wrap(parameterLabel ~ ., scales = "free_y") +
+  scale_fill_viridis_c(option = "A", begin = .1, end = .8) +
+  scale_color_viridis_c(option = "A", begin = .1, end = .8)
+
+dev.off()
 
 
 # Dissolved oxygen daily range --------------------------------------------
@@ -378,11 +530,11 @@ if(saveOutput == T){dev.off()}
 
 # WDL continuous data plotting --------------------------------------------
 
-ggplot(wqcont_wdl[wqcont_wdl$Datetime > as.POSIXct("2023-7-1") & 
+ggplot(wqcont_wdl[wqcont_wdl$Datetime > as.POSIXct("2023-6-1") & 
                      is.na(wqcont_wdl$site_code) == F & is.na(wqcont_wdl$Datetime) == F,], 
        aes(x = Datetime, y = Value)) + geom_line() + theme_bw() +
   facet_grid(Variable ~ site_code, scales = "free_y") + 
-  scale_x_datetime(breaks = "2 weeks", date_labels = "%b-%d")
+  scale_x_datetime(breaks = "1 month", date_labels = "%b-%d")
 
 if(saveOutput == T){dev.off()}
 # Predictive model --------------------------------------------------------
