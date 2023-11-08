@@ -1,7 +1,7 @@
 ## NDFS 2023 analysis script
 
-##Should output be saved?
-saveOutput <- T
+##Should output be saved (TRUE or FALSE)?
+saveOutput <- TRUE
 
 # Load libraries ----------------------------------------------------------
 
@@ -272,23 +272,23 @@ if(saveOutput == T){png(paste("figures/NDFS2023_Fig6_Continuous_temp%03d.png", s
                         height = 4, width = 6.5, unit = "in", res = 1000)}
 
 ##Find last point in ts to place site label
-wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetime <= as.POSIXct("2023-11-1")) %>% 
+wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetime <= as.POSIXct("2023-10-20")) %>% 
   group_by(site_code, parameterLabel) %>% mutate(maxdate = max(Datetime)) %>% data.frame()
 
 ## Water temp
-(cwq_wtemp1 <- ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
-                    
-                    wqcont_all$Datetime > as.POSIXct("2023-5-1"),], 
-       aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
-  labs(x = NULL, y = "Water temperature (C)") + scale_y_continuous(breaks = seq(0,30,2)) + 
-  scale_color_viridis_c(option = "A", begin = .1, end = .8) +
-  geom_text(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
-                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
-            fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15))
-# scale_x_datetime(breaks = "2 weeks", date_labels = "%b-%d")
+# (cwq_wtemp1 <- ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
+#                     
+#                     wqcont_all$Datetime > as.POSIXct("2023-5-1"),], 
+#        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
+#   labs(x = NULL, y = "Water temperature (C)") + scale_y_continuous(breaks = seq(0,30,2)) + 
+#   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
+#   geom_text(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
+#                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
+#             fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3))
+# # scale_x_datetime(breaks = "2 weeks", date_labels = "%b-%d")
 
-(cwq_wtemp2 <-ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & !(wqcont_all$site_code %in% "I80") &
-                    wqcont_all$Datetime > as.POSIXct("2023-5-1"),], 
+(cwq_wtemp2 <-ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & 
+                                  !(wqcont_all$site_code %in% c("I80", "STTD")),], 
        aes(x = Datetime, y = Param_val, color = dist)) + 
   geom_line(aes(group = site_code), show.legend = F, alpha = .3) + theme_bw() +
   geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
@@ -297,41 +297,47 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & !(wqcont_all$site_code %in% "I80") &
                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
-            fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) +
+            fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3) +
   scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
-  limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))))
+  limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-10-20"))))
 
 ## DO mgl
 (cwq_domgl <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Dissolved_Oxygen" & 
-                    wqcont_all$source %in% c("cdec", "nwis") &
+                                 !(wqcont_all$site_code %in% c("I80", "STTD")) &
                      is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
-       aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
+       aes(x = Datetime, y = Param_val, color = dist)) + 
+    geom_line(aes(group = site_code), show.legend = F, alpha = .3) + theme_bw() +
+    geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
+              stat = "smooth", method = "loess", span = .1) +
+    theme_bw() +
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
   labs(x = NULL, y = "DO (mg/L)") + scale_y_continuous(breaks = seq(0,30,2)) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Dissolved_Oxygen" & 
-                                               wqcont_all$source %in% c("cdec", "nwis") &
+                                               !(wqcont_all$site_code %in% c("I80", "STTD")) &
                                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) +
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3) +
   scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
-                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))))
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-10-20"))))
 
 ## EC
-(cwq_spc <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
-                    wqcont_all$source %in% c("cdec", "nwis") &
+(cwq_spc <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& 
+                               wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
+                               !(wqcont_all$site_code %in% c("I80", "STTD")) &
                      is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
   labs(x = NULL, y = "SPC (uS/cm)") + scale_y_continuous(breaks = seq(0,1000,100)) +
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
-                                wqcont_all$source %in% c("cdec", "nwis") &
+                                               !(wqcont_all$site_code %in% c("I80", "STTD")) &
                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15) +
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3) +
   scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
-                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1")))) 
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-10-20")))) 
 
 ## Turb 
-(cwq_turb <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Turbidity" & 
-                    wqcont_all$source %in% c("cdec", "nwis") &
+(cwq_turb <-ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& 
+                                wqcont_all$parameterLabel == "Turbidity" & 
+                                !(wqcont_all$site_code %in% c("I80", "STTD")) &
                     is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
        aes(x = Datetime, y = Param_val, color = dist)) + 
   geom_line(aes(group = site_code), show.legend = F, alpha = .3) + theme_bw() +
@@ -342,15 +348,17 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
   coord_cartesian(ylim = c(0,80)) +
   scale_y_continuous(breaks = seq(0,100,20)) +
   scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
-                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))) +
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-10-20"))) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Turbidity" & 
-                                               wqcont_all$source %in% c("cdec", "nwis") &
+                                               !(wqcont_all$site_code %in% c("I80", "STTD")) &
                                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15))
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3))
 
 
 ## Chlorophyll
-(cwq_chl <- ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& wqcont_all$parameterLabel == "Chlorophyll" & 
+(cwq_chl <- ggplot(wqcont_all[wqcont_all$Datetime > as.POSIXct("2023-5-1")& 
+                                wqcont_all$parameterLabel == "Chlorophyll" & 
+                                !(wqcont_all$site_code %in% "TOE") &
                     is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
        aes(x = Datetime, y = Param_val, color = dist)) + 
   geom_line(aes(group = site_code), show.legend = F, alpha = .2) + theme_bw() +
@@ -361,23 +369,23 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
   coord_cartesian(ylim = c(0,30)) +
   scale_y_continuous(breaks = seq(0,100,5)) +
   scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
-                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-11-1"))) +
+                   limits = c(as.POSIXct("2023-5-1"), as.POSIXct("2023-10-20"))) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Chlorophyll" & 
-                                               # wqcont_all$source %in% c("cdec", "nwis") &
+                                               !(wqcont_all$site_code %in% "TOE") &
                                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
-                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15))
+                           fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3))
 
 if(saveOutput == T){dev.off()}
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig6_Continuous_temp_panel%03d.png", sep = ""), 
                         height = 7, width = 6.5, unit = "in", res = 1000, family = "serif")}
 
-cowplot::plot_grid(cwq_wtemp2 + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
-                   cwq_domgl + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
-                   cwq_spc + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
-                   cwq_turb+ theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+cowplot::plot_grid(cwq_wtemp2 + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), plot.margin = unit(c(5.5,5.5,0,5.5), "pt")), 
+                   cwq_domgl + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), plot.margin = unit(c(5.5,5.5,0,5.5), "pt")), 
+                   cwq_spc + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), plot.margin = unit(c(5.5,5.5,0,5.5), "pt")), 
+                   cwq_turb + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), plot.margin = unit(c(5.5,5.5,0,5.5), "pt")), 
                    cwq_chl,
-                   ncol = 1, align = "v")
+                   ncol = 1, align = "v", rel_heights = c(9,9,9,9,10))
 
 if(saveOutput == T){dev.off()}
 
@@ -537,6 +545,68 @@ ggplot(wqcont_wdl[wqcont_wdl$Datetime > as.POSIXct("2023-6-1") &
   scale_x_datetime(breaks = "1 month", date_labels = "%b-%d")
 
 if(saveOutput == T){dev.off()}
+
+
+# Contaminants WQ ---------------------------------------------------------
+
+contam <- readxl::read_excel("data/YoloWaterPesticideResults_2023_Preliminary_to_DWR.xlsx")
+contam_lookup <- readxl::read_excel("data/OCRL_MDL_RL_AnalyteList_06062022.xlsx", skip = 4) %>% 
+  janitor::clean_names() %>% select(c(compound, chemical_class, pesticide_type))
+head(contam_lookup)
+contam <- contam[is.na(contam$Project) == F,]
+dput(colnames(contam))
+contam_long <- contam %>% select(-c("Atrazine-13C3", "Fipronil-13C4,15N2", "Imidacloprid-d4", "Metolachlor-13C6", 
+                                    "p,p'-DDE-13C12", "Permethrin-13C6", "Tebuconazole-13C3", "Trifluralin-d14")) %>% 
+  pivot_longer(c("3,4-DCA", "3,5-DCA", "Acetamiprid", "Acetochlor", "Acibenzolar-S-Methyl", 
+                                        "Allethrin", "Atrazine", "Atrazine, Desethyl", "Atrazine, Desisopropyl", 
+                                        "Azoxystrobin", "Benefin", "Bentazon", "Benzobicyclon", "Benzovindiflupyr", 
+                                        "Bifenthrin", "Boscalid", "Boscalid Metabolite - M510F01 Acetyl", 
+                                        "Broflanilide", "Bromuconazole", "Butralin", "Carbaryl", "Carbendazim", 
+                                        "Carbofuran", "Chlorantraniliprole", "Chlorfenapyr", "Chlorothalonil", 
+                                        "Chlorpyrifos", "Chlorpyrifos Oxon", "Clomazone", "Clothianidin", 
+                                        "Clothianidin Desmethyl", "Coumaphos", "Cyantraniliprole", "Cyazofamid", 
+                                        "Cyclaniliprole", "Cycloate", "Cyfluthrin", "Cyhalofop-Butyl", 
+                                        "Cyhalothrin", "Cymoxanil", "Cypermethrin", "Cyproconazole", 
+                                        "Cyprodinil", "DCPA", "DCPMU", "DCPU", "Deltamethrin", "Desthio-Prothioconazole", 
+                                        "Diazinon", "Diazinon Oxon", "Dichlorvos", "Difenoconazole", 
+                                        "Dimethomorph", "Dinotefuran", "Dithiopyr", "Diuron", "EPTC", 
+                                        "Esfenvalerate", "Ethaboxam", "Ethalfluralin", "Etofenprox", 
+                                        "Etoxazole", "Famoxadone", "Fenamidone", "Fenbuconazole", "Fenhexamid", 
+                                        "Fenpropathrin", "Fenpyroximate", "Fipronil", "Fipronil Desulfinyl", 
+                                        "Fipronil Desulfinyl Amide", "Fipronil Sulfide", "Fipronil Sulfone", 
+                                        "Flonicamid", "Florpyrauxifen-Benzyl", "Fluazinam", "Fludioxonil", 
+                                        "Flufenacet", "Fluindapyr", "Flumetralin", "Fluopicolide", "Fluopyram", 
+                                        "Fluoxastrobin", "Flupyradifurone", "Fluridone", "Flutolanil", 
+                                        "Flutriafol", "Fluxapyroxad", "Halauxifen-methyl ester", "Hexazinone", 
+                                        "Imazalil", "Imazosulfuron", "Imidacloprid", "Imidacloprid desnitro", 
+                                        "Imidacloprid Olefin", "Imidacloprid Urea", "Imidacloprid, 5-Hydroxy", 
+                                        "Indaziflam", "Indoxacarb", "Ipconazole", "Iprodione", "Isofetamid", 
+                                        "Kresoxim-Methyl", "Malathion", "Malathion Oxon", "Mandestrobin", 
+                                        "Mandipropamid", "Metalaxyl", "Metalaxyl Alanine Metabolite", 
+                                        "Metconazole", "Methoprene", "Methoxyfenozide", "Metolachlor", 
+                                        "Myclobutanil", "Naled (Dibrom)", "Napropamide", "Nitrapyrin", 
+                                        "Novaluron", "Oryzalin", "Oxadiazon", "Oxathiapiprolin", "Oxyfluorfen", 
+                                        "p,p'-DDD", "p,p'-DDE", "p,p-DDT", "Paclobutrazol", "Pendimethalin", 
+                                        "Penoxsulam", "Pentachloroanisole (PCA)", "Pentachloronitrobenzene (PCNB)", 
+                                        "Penthiopyrad", "Permethrin", "Phenothrin", "Phosmet", "Picarbutrazox", 
+                                        "Picoxystrobin", "Piperonyl Butoxide", "Prodiamine", "Prometon", 
+                                        "Prometryn", "Propanil", "Propargite", "Propiconazole", "Propyzamide", 
+                                        "Pydiflumetofen", "Pyraclostrobin", "Pyridaben", "Pyrimethanil", 
+                                        "Pyriproxyfen", "Quinoxyfen", "Sedaxane", "Simazine", "Sulfoxaflor", 
+                                        "Tebuconazole", "Tebuconazole t-Butylhydroxy", "Tebufenozide", 
+                                        "Tebupirimfos", "Tebupirimfos Oxon", "Tefluthrin", "Tetraconazole", 
+                                        "Tetramethrin", "t-Fluvalinate", "Thiabendazole", "Thiacloprid", 
+                                        "Thiamethoxam", "Thiamethoxam Degradate (CGA-355190)", "Thiamethoxam Degradate (NOA-407475)", 
+                                        "Thiobencarb", "Tolfenpyrad", "Triadimefon", "Triadimenol", "Triallate", 
+                                        "Tribufos", "Trifloxystrobin", "Triflumizole", "Trifluralin", 
+                                        "Triticonazole", "Valifenalate", "Zoxamide"),
+                                       names_to = "compound")
+contam_long$compound2 <- tolower(contam_long$compound)
+contam_lookup$compound2 <- tolower(contam_lookup$compound)
+contam_merge <- merge(contam_long, contam_lookup, by = "compound2", all.x = T)
+
+unique(contam_merge[is.na(contam_merge$chemical_class) == TRUE, "compound2"])
+
 # Predictive model --------------------------------------------------------
 
 # Zoop score as response variable, Explanatory variables: Do range, Turb, CHL, etc.
