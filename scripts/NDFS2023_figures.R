@@ -551,7 +551,7 @@ if(saveOutput == T){dev.off()}
 
 contam <- readxl::read_excel("data/YoloWaterPesticideResults_2023_Preliminary_to_DWR.xlsx")
 contam_lookup <- readxl::read_excel("data/OCRL_MDL_RL_AnalyteList_06062022.xlsx", skip = 4) %>% 
-  janitor::clean_names() %>% select(c(compound, chemical_class, pesticide_type))
+  janitor::clean_names() %>% select(c(compound, chemical_class, pesticide_type, pesticide_group))
 
 contam <- contam[is.na(contam$Project) == F,]
 contam$Date <- as.Date(contam$`Start date`)
@@ -623,19 +623,50 @@ contam_merge$date <- ifelse(contam_merge$transect == 1, "06-26",
                                                     ifelse(contam_merge$transect == 6, "09-05", 
                                                            ifelse(contam_merge$transect == 7, "09-19", "10-03")))))))
 
-contam_type <- contam_merge %>% group_by(Site, dist, date, pesticide_type) %>% 
+contam_type <- contam_merge %>% group_by(Site, dist, date, pesticide_group) %>% 
   summarize(totconc = sum(value))
 unique(contam_type$Site)
 contam_type$site_fac <- factor(contam_type$Site, levels = c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR"))
+
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig8_Contaminant_wq%03d.png", sep = ""), 
-                        height = 6.5, width = 7.5, unit = "in", res = 1000, family = "serif")}
+                        height = 6, width = 7.5, unit = "in", res = 1000, family = "serif")}
 ggplot(contam_type, aes(x = site_fac, y = totconc), fill = "black") + 
   geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
-  facet_grid(pesticide_type ~ date, scales = "free") +
+  facet_grid(pesticide_group ~ date, scales = "free") +
   # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
   labs(y = "Total concentration (ng/L)", x = NULL) +
   theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
-dev.off()
+# if(saveOutput == T){dev.off()}
+
+##Contaminants
+
+contam_id <- contam_merge %>% group_by(Site, dist, compound2, pesticide_group) %>% 
+  summarize(totconc = sum(value))
+contam_id$site_fac <- factor(contam_id$Site, levels = c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR"))
+
+# if(saveOutput == T){png(paste("figures/NDFS2023_Fig8a_Contaminant_wq%03d.png", sep = ""), 
+#                         height = 6, width = 7, unit = "in", res = 1000, family = "serif")}
+
+ggplot(contam_id, aes(x = reorder(compound2, -totconc), y = totconc)) + 
+  geom_bar(stat = "identity") + scale_y_log10() + facet_grid(site_fac ~ pesticide_group, scales = "free") +
+  labs(y = "Total concentration (ng/L)", x = "Compound") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(contam_id, aes(x = reorder(compound2, -totconc), y = totconc, fill = pesticide_group)) + 
+  geom_bar(stat = "identity") + scale_y_log10() + facet_grid(site_fac ~ ., scales = "fixed") +
+  labs(y = "Total concentration (ng/L)", x = "Compound", fill = "Pesticide class") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 55, hjust = 1),
+                     legend.position = "bottom")
+
+if(saveOutput == T){dev.off()}
+
+contam_bool <- contam_merge %>% group_by(Site, compound2) %>% 
+  summarize(sumconc =1) %>% group_by(Site) %>% summarize(tot = sum(sumconc))
+
+contam_bool$sumconc <- 1
+
+
 
 # Predictive model --------------------------------------------------------
 
