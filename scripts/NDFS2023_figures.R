@@ -431,7 +431,7 @@ wqcontply <- wqcont_all %>%
   summarize(medval = median(Param_val))
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig6a_Continuous_vars%03d.png", sep = ""), 
-                        height = 4, width = 6.5, unit = "in", res = 1000)}
+                        height = 4, width = 6.5, unit = "in", res = 1000, family = "serif")}
 
 ggplot(wqcontply[wqcontply$Date > as.POSIXct("2023-6-1"),], 
        aes(y = medval, x = dist, fill = dist, color = dist)) + 
@@ -552,9 +552,9 @@ if(saveOutput == T){dev.off()}
 contam <- readxl::read_excel("data/YoloWaterPesticideResults_2023_Preliminary_to_DWR.xlsx")
 contam_lookup <- readxl::read_excel("data/OCRL_MDL_RL_AnalyteList_06062022.xlsx", skip = 4) %>% 
   janitor::clean_names() %>% select(c(compound, chemical_class, pesticide_type))
-head(contam_lookup)
+
 contam <- contam[is.na(contam$Project) == F,]
-dput(colnames(contam))
+contam$Date <- as.Date(contam$`Start date`)
 contam_long <- contam %>% select(-c("Atrazine-13C3", "Fipronil-13C4,15N2", "Imidacloprid-d4", "Metolachlor-13C6", 
                                     "p,p'-DDE-13C12", "Permethrin-13C6", "Tebuconazole-13C3", "Trifluralin-d14")) %>% 
   pivot_longer(c("3,4-DCA", "3,5-DCA", "Acetamiprid", "Acetochlor", "Acibenzolar-S-Methyl", 
@@ -603,9 +603,39 @@ contam_long <- contam %>% select(-c("Atrazine-13C3", "Fipronil-13C4,15N2", "Imid
                                        names_to = "compound")
 contam_long$compound2 <- tolower(contam_long$compound)
 contam_lookup$compound2 <- tolower(contam_lookup$compound)
-contam_merge <- merge(contam_long, contam_lookup, by = "compound2", all.x = T)
+contam_merge <- merge(merge(contam_long, contam_lookup, by = "compound2", all.x = T),
+                      stations[, c("station_name", "dist")], by.x = "Site", by.y = "station_name", all.x = T)
+contam_merge <- contam_merge[is.na(contam_merge$value) == F,]
 
 unique(contam_merge[is.na(contam_merge$chemical_class) == TRUE, "compound2"])
+
+# Add week to contam_merge data for plotting individual transects
+contam_merge$week <- format(contam_merge$Date, format = "%W")
+
+# Convert week to transect number
+contam_merge$transect <- as.character(as.integer(as.factor(contam_merge$week)))
+
+contam_merge$date <- ifelse(contam_merge$transect == 1, "06-26", 
+                        ifelse(contam_merge$transect == 2, "07-10", 
+                               ifelse(contam_merge$transect == 3, "07-25", 
+                                      ifelse(contam_merge$transect == 4, "08-08", 
+                                             ifelse(contam_merge$transect == 5, "08-23", 
+                                                    ifelse(contam_merge$transect == 6, "09-05", 
+                                                           ifelse(contam_merge$transect == 7, "09-19", "10-03")))))))
+
+contam_type <- contam_merge %>% group_by(Site, dist, date, pesticide_type) %>% 
+  summarize(totconc = sum(value))
+unique(contam_type$Site)
+contam_type$site_fac <- factor(contam_type$Site, levels = c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR"))
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig8_Contaminant_wq%03d.png", sep = ""), 
+                        height = 6.5, width = 7.5, unit = "in", res = 1000, family = "serif")}
+ggplot(contam_type, aes(x = site_fac, y = totconc), fill = "black") + 
+  geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
+  facet_grid(pesticide_type ~ date, scales = "free") +
+  # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
+  labs(y = "Total concentration (ng/L)", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
+dev.off()
 
 # Predictive model --------------------------------------------------------
 
