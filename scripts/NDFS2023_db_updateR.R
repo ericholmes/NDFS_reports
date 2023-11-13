@@ -23,7 +23,7 @@ discrete_number <- c("B9D81651399", "A0D83441350", "B9D81450411",
                      "A1030000", "A0033300", "B9B81541403")
 
 continuous_number <- c("B9D81651399", "A0D83441350", NA, 
-                       "B9156000", NA, "A0D84061386",
+                       "B9156000", "A0D84761435", "A0D84061386",
                        "A0C85051515", "B91212", NA,
                        "A0D82120386", NA,
                        NA, NA, NA)
@@ -51,8 +51,8 @@ for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
                      "Chlorophyll",
                      "Fluorescent_Dissolved_Organic_Matter")){
     print(paste("Station:", StationNumber, "Parameter:", Parameter))
-    try(temp <- read.csv(paste0("https://wdlstorageaccount.blob.core.windows.net/continuous/",
-                            StationNumber, "/por/", StationNumber, "_", Parameter, "_Raw.csv"), skip = 2))
+    try({temp <- read.csv(paste0("https://wdlstorageaccount.blob.core.windows.net/continuous/",
+                            StationNumber, "/por/", StationNumber, "_", Parameter, "_Raw.csv"), skip = 2)
     temp <- temp[, 1:2]
     colnames(temp) <- c("Datetime", "Value")
     temp$Station <- StationNumber
@@ -60,6 +60,7 @@ for(StationNumber in na.omit(NDFS_site_df$continuous_number)){
     temp$Datetime <- as.POSIXct(temp$Datetime, format = "%m/%d/%Y %H:%M:%S")
     wqcont <- rbind(wqcont, temp[temp$Datetime >= as.POSIXct("2023-01-01 00:00") &
                                    temp$Datetime <= as.POSIXct("2023-12-31 23:59"),])
+    })
     
   }
 }
