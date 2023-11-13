@@ -1,7 +1,7 @@
 ## NDFS 2023 analysis script
 
 ##Should output be saved (TRUE or FALSE)?
-saveOutput <- TRUE
+saveOutput <- F
 
 # Load libraries ----------------------------------------------------------
 
@@ -52,6 +52,7 @@ ggplot(wqcont_all[wqcont_all$Datetime >= as.POSIXct("2023-5-1") & wqcont_all$Dat
                     wqcont_all$site_code == "TOE",],
   # TOE[TOE$parameterLabel == "Discharge_tf" & TOE$$Datetime > as.POSIXct("2023-6-1"),], 
        aes(x = Datetime)) +
+  scale_x_datetime(breaks = scales::date_breaks("1 month"), labels = scales::date_format("%b-%d")) +
   ggh4x::stat_difference(aes(ymin = 0, ymax = Param_val), show.legend = F, alpha = .5) +
   geom_line(aes(y = Param_val)) + theme_bw() + labs(x = NULL, y = "Tidally filtered discharge (cfs)") +
   scale_fill_manual(values = c("+" = "skyblue", "-" = "salmon2")) 
@@ -61,15 +62,18 @@ if(saveOutput == T){dev.off()}
 # Daily average flow at Lisbon --------------------------------------------
 lisflow <- wqcont_all[wqcont_all$site_code == "LIS" & wqcont_all$parameterLabel == "Discharge",]
 lisflow$Date <- as.Date(lisflow$Datetime)
-lisflowply <- lisflow %>% group_by(Date) %>% summarize(meanflow = mean(Param_val))
+lisflowply <- lisflow %>% group_by(Date) %>% summarize(meanflow = mean(Param_val, na.rm = T))
 
-##Not shSome missing data here during a crucial time
-ggplot(lisflowply[lisflowply$Date > as.POSIXct("2023-5-1"),],
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig2a_LISflow%03d.png", sep = ""), 
+                        height = 4, width = 6.5, unit = "in", res = 1000)}
+##Some missing data here during a crucial time
+ggplot(lisflowply[lisflowply$Date > as.POSIXct("2023-5-1") & lisflowply$Date <= as.POSIXct("2023-11-1") ,],
        aes(x = Date)) +
   ggh4x::stat_difference(aes(ymin = 0, ymax = meanflow), show.legend = F, alpha = .5) +
   geom_line(aes(y = meanflow)) + theme_bw() + labs(x = NULL, y = "Tidally filtered discharge (cfs)") +
+  scale_x_date(breaks = scales::date_breaks("1 month"), labels = scales::date_format("%b-%d")) +
   scale_fill_manual(values = c("+" = "skyblue", "-" = "salmon2")) 
-
+if(saveOutput == T){dev.off()}
 # Point water quality plot ------------------------------------------------
 
 # Change zoop code from character to integer format
@@ -100,6 +104,22 @@ ndmelt <- reshape2::melt(ndfs23[, c("station_name",  "wdl_sam_collection_date", 
                                     "secchi", "water_temp", "do_probe", "sp_cond", "ec", "p_h", "microcyst", "veg_rank", "turb", "Zoop_Code")],
                          id.vars = c("station_name",  "wdl_sam_collection_date", "transect"))
 
+# Change variable labels
+varnamelookup <- data.frame(varname = c("secchi", "water_temp", "do_probe", 
+                                        "sp_cond", "ec", "p_h", "microcyst", 
+                                        "veg_rank", "turb", "Zoop_Code"),
+                            labels = c("Secchi~(m)", "Water~temp.~(degree*C)", "DO~(mg~L^-1)",
+                                       "SPC~(mu*S~cm^-1)", "EC~(mu*S~cm^-1)", "pH", "microcystis~rank",
+                                       "vegetation~rank", "Turbidity~(NTU)", "Zoop~score"))
+                            # labels = c("Copepoda~log(orgs.~m^-3)", "Insecta~log(orgs.~m^-3)",
+                            #            "Lg.~cladocera~log(orgs.~m^-3)", "Ostracoda~log(orgs.~m^-3)", "Rare~taxa~log(orgs.~m^-3)",
+                            #            "Rotifera~log(orgs.~m^-3)", "Sm.~cladocera~log(orgs.~m^-3)",
+                            #            "Chlorophyll-alpha~(mu*g~L^-1)", "Diss.~Organic~Carbon~(mu*g~L^-1)",
+                            #            "Mean~daily~DO~range(mg~L^-1)","Mean~daily~wtemp~range~(degree*C)", "Spec.~conductivity~(mu*S~cm^-1)"))
+
+ndmerge$varfac <- factor(ndmerge$variable, levels = ndmerge$variable,
+                        labels = varnamelookup[match(ndmerge$variable, varnamelookup$varname), "labels"])
+dput(unique(ndmerge$variable))
 # merge longitudinal river mile data with long format wq data
 ndmerge <- merge(ndmelt, stations, by = "station_name", all.x = T)
 ndmerge$value <- as.numeric(ndmerge$value)
@@ -112,6 +132,8 @@ ndmerge$date <- ifelse(ndmerge$transect == 1, "06-26",
                                                    ifelse(ndmerge$transect == 6, "09-05", 
                                                           ifelse(ndmerge$transect == 7, "09-19", "10-03")))))))
 
+
+
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig3_wq%03d.png", sep = ""), 
     height = 6.5, width = 7.5, unit = "in", res = 1000)}
 
@@ -121,7 +143,8 @@ ggplot(ndmerge[ndmerge$variable != "Zoop_Code" & !(ndmerge$station_name %in% c("
   geom_point(data = ndmerge[ndmerge$variable != "Zoop_Code" & ndmerge$station_name %in% c("WWT", "DWT"),], shape = 4) +
   geom_point(data = ndmerge[ndmerge$variable != "Zoop_Code" & ndmerge$station_name %in% c("SHR"),], shape = 1) +
   scale_x_reverse() + scale_color_viridis_d() + 
-  facet_wrap(variable ~ ., scales = "free") + theme_bw() + labs(y = "Parameter value", x = "Distance from Rio Vista (km)") +
+  facet_wrap(varfac ~ ., scales = "free", labeller=label_parsed) + 
+  theme_bw() + labs(y = "Parameter value", x = "Distance from Rio Vista (km)") +
   theme(legend.position = "bottom")
 
 ggplot(ndmerge[!(ndmerge$variable %in% c("Zoop_Code", "water_temp", "do_probe", "microcyst", "ec", "veg_rank")) & 
@@ -133,7 +156,7 @@ ggplot(ndmerge[!(ndmerge$variable %in% c("Zoop_Code", "water_temp", "do_probe", 
   geom_point(data = ndmerge[!(ndmerge$variable %in% c("Zoop_Code", "water_temp", "do_probe", "microcyst", "ec", "veg_rank")) & 
                               ndmerge$station_name %in% c("SHR"),], shape = 1) +
   scale_x_reverse() + scale_color_viridis_d() + 
-  facet_wrap(variable ~ ., scales = "free") + theme_bw() + 
+  facet_wrap(varfac ~ ., scales = "free", labeller=label_parsed) + theme_bw() + 
   labs(y = "Parameter value", x = "Distance from Rio Vista (km)", color = "Date") +
   theme(legend.position = "bottom")
 
@@ -171,6 +194,34 @@ stations$station_number
 wqlmerge <- merge(wqlab, stations[, c(1,3,4)], by.x = "station_number", 
                   by.y = "discrete_station_number",all.x = T)
 
+# Change variable labels
+wqlvarnamelookup <- data.frame(varname = c("Dissolved ortho-Phosphate", "Dissolved Ammonia", "Total Phosphorus", 
+                                           "Dissolved Nitrate + Nitrite", "Dissolved Organic Nitrogen", 
+                                           "Total Dissolved Solids", "Chlorophyll a", "Dissolved Silica (SiO2)", 
+                                           "Total Organic Carbon", "Dissolved Chloride", "Dissolved Calcium", 
+                                           "Total Suspended Solids", "Volatile Suspended Solids", "Dissolved Organic Carbon", 
+                                           "Total Kjeldahl Nitrogen", "Pheophytin a"),
+                            varfac = c("DOP~(mg~L^-1)", "NH[3]~(mg~L^-1)", "TP~(mg~L^-1)", 
+                                       "DNN~(mg~L^-1)", "DON~(mg~L^-1)", 
+                                       "TDS~(mg~L^-1)", "Chl.-alpha~(mu*g~L^-1)", "SiO[2]~(mg~L^-1)", 
+                                       "TOC~(mg~L^-1)", "Cl^'-'~(mg~L^-1)", "Ca~(mg~L^-1)", 
+                                       "TSS~(mg~L^-1)", "VSS~(mg~L^-1)", "DOC~(mg~L^-1)", 
+                                       "TKN~(mg~L^-1)", "Pheo.-alpha~(mu*g~L^-1)"),
+                               RL = c(0.05, 0.05, 0.01,
+                                      0.05, 0.1, 
+                                      2.5, 0.5, 0.1,
+                                      0.5, 1, 1, 
+                                      2.5, 2.5, 0.5, 
+                                      0.1, 0.5))
+# labels = c("Copepoda~log(orgs.~m^-3)", "Insecta~log(orgs.~m^-3)",
+#            "Lg.~cladocera~log(orgs.~m^-3)", "Ostracoda~log(orgs.~m^-3)", "Rare~taxa~log(orgs.~m^-3)",
+#            "Rotifera~log(orgs.~m^-3)", "Sm.~cladocera~log(orgs.~m^-3)",
+#            "Chlorophyll-alpha~(mu*g~L^-1)", "Diss.~Organic~Carbon~(mu*g~L^-1)",
+#            "Mean~daily~DO~range(mg~L^-1)","Mean~daily~wtemp~range~(degree*C)", "Spec.~conductivity~(mu*S~cm^-1)"))
+dput(unique(wqlmerge$parameter))
+wqlmerge$varfac <- factor(wqlmerge$parameter, levels = wqlmerge$parameter,
+                         labels = wqlvarnamelookup[match(wqlmerge$parameter, wqlvarnamelookup$varname), "varfac"])
+
 # Convert result to numeric vlaues
 wqlmerge$result <- as.numeric(wqlmerge$result)
 wqlmerge$result2 <- ifelse(is.na(wqlmerge$result) == T, 0,wqlmerge$result)
@@ -184,15 +235,16 @@ wqlmerge$date <- ifelse(wqlmerge$transect == 1, "06-26",
                                                           ifelse(wqlmerge$transect == 7, "09-19", "10-03")))))))
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig4_wq%03d.png", sep = ""), 
-                        height = 6.5, width = 6.5, unit = "in", res = 1000)}
+                        height = 7.5, width = 7.5, unit = "in", res = 1000)}
 ggplot(wqlmerge[!(wqlmerge$station_name.y %in% c("WWT", "DWT", "SHR")),], 
-       aes(y = result, x = dist, color = date, group = date)) + 
+       aes(y = result2, x = dist, color = date, group = date)) + 
   geom_line() + geom_point() + 
   geom_point(data = wqlmerge[wqlmerge$station_name.y %in% c("WWT", "DWT"),], 
              shape = 4, show.legend = F) +
   geom_point(data = wqlmerge[wqlmerge$station_name.y %in% c("SHR"),], shape = 1) +
   scale_x_reverse() + scale_color_viridis_d() +
-  facet_wrap(parameter ~ ., scales = "free") + theme_bw() + 
+  geom_hline(data = wqlvarnamelookup, aes(yintercept = RL), linetype = 2) + 
+  facet_wrap(varfac ~ ., scales = "free", labeller=label_parsed) + theme_bw() + 
   labs(y = "Parameter value", x = "Distance from Rio Vista (km)", color = NULL) +
   theme(legend.position = "bottom")
 
@@ -219,7 +271,7 @@ ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,],
 ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,], 
        aes(y = value, x = date, fill = dist, color = dist, group = dist)) + 
   # geom_bar(stat = "identity", position = "dodge", width = 2) + 
-  geom_point() + labs(y = "Zoop score", x = "Distance from Rio Vista (km)") +
+  geom_point() + labs(y = "Zoop score", x = "Date") +
   geom_line(stat = "smooth", se = F, span = .8) +
   scale_color_viridis_c() + scale_fill_viridis_c() + 
   # facet_grid(transect ~ .) + 
@@ -232,7 +284,7 @@ ndmerge$stafac <- factor(ndmerge$station_name,
 ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,], 
        aes(y = value, x = date, fill = date, color = date)) + 
   theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  geom_bar(stat = "identity", show.legend = F) + labs(y = "Zoop score", x = "Distance from Rio Vista (km)") +
+  geom_bar(stat = "identity", show.legend = F) + labs(y = "Zoop score", x = NULL) +
   # geom_line(stat = "smooth", se = F, method = "loess", span = .6) +
   scale_color_viridis_d() + scale_fill_viridis_d() +
   facet_wrap(stafac ~ .)
@@ -255,7 +307,7 @@ if(saveOutput == T){dev.off()}
 # Continuous data plotting ------------------------------------------------
 load("data/NDFS2023_wqcont_all.Rdata")
 wqcont_all <- merge(wqcont_all, stations[,c("station_name", "dist")], by.x = "site_code", by.y = "station_name", all.x = T)
-
+wqcont_all <- wqcont_all[!(wqcont_all$site_code == "LIS" & wqcont_all$source == "cdec"),]
 # data cleaning
 wqcont_all <- wqcont_all[is.na(wqcont_all$Param_val) == F,]
 wqcont_all <- wqcont_all[is.na(wqcont_all$Datetime) == F,]
@@ -275,17 +327,18 @@ if(saveOutput == T){png(paste("figures/NDFS2023_Fig6_Continuous_temp%03d.png", s
 wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetime <= as.POSIXct("2023-10-20")) %>% 
   group_by(site_code, parameterLabel) %>% mutate(maxdate = max(Datetime)) %>% data.frame()
 
-## Water temp
-# (cwq_wtemp1 <- ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
-#                     
-#                     wqcont_all$Datetime > as.POSIXct("2023-5-1"),], 
-#        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
-#   labs(x = NULL, y = "Water temperature (C)") + scale_y_continuous(breaks = seq(0,30,2)) + 
-#   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
-#   geom_text(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & #wqcont_all$source %in% c("cdec") &
-#                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
-#             fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3))
-# # scale_x_datetime(breaks = "2 weeks", date_labels = "%b-%d")
+dput(unique(wqcont_all$parameterLabel))
+wcvarnamelookup <- data.frame(varname = c("Water_Temperature", "Dissolved_Oxygen", "Dissolved_Oxygen_Percentage",
+                                          "Electrical_Conductivity_at_25C",  "Turbidity", 
+                                          "Chlorophyll", "Fluorescent_Dissolved_Organic_Matter",  
+                                           "pH", "Discharge", "Discharge_tf", "Conductivity"),
+                            labels = c("Water~temp.~(degree*C)", "DO~(mg~L^-1)", "DO~(%~sat.)",
+                                       "SPC~(mu*S~cm^-1)",  "Turbidity~(NTU)", 
+                                       "Chl.-alpha~(mu*g~L^-1)", "FDOM~(mg~L^-1)",
+                                       "pH", "Discharge~(cfs)", "Discharge_tf~(cfs)", "Conductivity~(mu*S~cm^-1)"))
+
+wqcont_all$varfac <- factor(wqcont_all$parameterLabel, levels = wqcont_all$parameterLabel,
+                         labels = wcvarnamelookup[match(wqcont_all$parameterLabel, wcvarnamelookup$varname), "labels"])
 
 (cwq_wtemp2 <-ggplot(wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & 
                                   !(wqcont_all$site_code %in% c("I80", "STTD")),], 
@@ -293,9 +346,10 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
   geom_line(aes(group = site_code), show.legend = F, alpha = .3) + theme_bw() +
   geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
             stat = "smooth", method = "loess", span = .1) + theme_bw() +
-  labs(x = NULL, y = "Water temp (C)") + scale_y_continuous(breaks = seq(0,30,2)) + 
+  labs(x = NULL, y = bquote(Water~temp.~(degree*C))) + scale_y_continuous(breaks = seq(0,30,2)) + 
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
-  ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & !(wqcont_all$site_code %in% "I80") &
+  ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Water_Temperature" & 
+                                               !(wqcont_all$site_code %in% c("I80", "STTD")) &
                                 wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val + .5, label = site_code), 
             fontface = "bold", show.legend = F, bg.color = "white", bg.r = .15, size = 3) +
   scale_x_datetime(breaks=scales::date_breaks("1 month"), labels=scales::date_format("%b-%d"),
@@ -311,7 +365,7 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
               stat = "smooth", method = "loess", span = .1) +
     theme_bw() +
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
-  labs(x = NULL, y = "DO (mg/L)") + scale_y_continuous(breaks = seq(0,30,2)) +
+  labs(x = NULL, y = bquote(DO~(mg~L^-1))) + scale_y_continuous(breaks = seq(0,30,2)) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Dissolved_Oxygen" & 
                                                !(wqcont_all$site_code %in% c("I80", "STTD")) &
                                                wqcont_all$Datetime == wqcont_all$maxdate,], aes(y = Param_val, label = site_code), 
@@ -325,7 +379,7 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
                                !(wqcont_all$site_code %in% c("I80", "STTD")) &
                      is.na(wqcont_all$site_code) == F & is.na(wqcont_all$Datetime) == F,], 
        aes(x = Datetime, y = Param_val, color = dist)) + geom_line(aes(group = site_code), show.legend = F, alpha = .7) + theme_bw() +
-  labs(x = NULL, y = "SPC (uS/cm)") + scale_y_continuous(breaks = seq(0,1000,100)) +
+  labs(x = NULL, y = bquote(SPC~(mu*S~cm^-1))) + scale_y_continuous(breaks = seq(0,1000,100)) +
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
   ggrepel::geom_text_repel(data = wqcont_all[wqcont_all$parameterLabel == "Electrical_Conductivity_at_25C" & 
                                                !(wqcont_all$site_code %in% c("I80", "STTD")) &
@@ -364,7 +418,7 @@ wqcont_all <- wqcont_all %>% filter(Datetime >= as.POSIXct("2023-5-1") & Datetim
   geom_line(aes(group = site_code), show.legend = F, alpha = .2) + theme_bw() +
   geom_line(aes(group = site_code), show.legend = F, alpha = .8, linewidth = 1,
             stat = "smooth", method = "loess", span = .1) +
-  labs(x = NULL, y = "Chl-a (ug/L)") + 
+  labs(x = NULL, y = bquote(Chl.-alpha~(mu*g~L^-1))) + 
   scale_color_viridis_c(option = "A", begin = .1, end = .8) +
   coord_cartesian(ylim = c(0,30)) +
   scale_y_continuous(breaks = seq(0,100,5)) +
@@ -427,7 +481,7 @@ wqcontply <- wqcont_all %>%
   filter(parameterLabel %in% c("Electrical_Conductivity_at_25C", "pH", 
                                "Turbidity", "Dissolved_Oxygen", 
                                "Fluorescent_Dissolved_Organic_Matter", "Chlorophyll")) %>% 
-  group_by(Date, dist, site_code, parameterLabel) %>% 
+  group_by(Date, dist, site_code, parameterLabel, varfac) %>% 
   summarize(medval = median(Param_val))
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig6a_Continuous_vars%03d.png", sep = ""), 
@@ -437,7 +491,7 @@ ggplot(wqcontply[wqcontply$Date > as.POSIXct("2023-6-1"),],
        aes(y = medval, x = dist, fill = dist, color = dist)) + 
   geom_boxplot(aes(group = dist), show.legend = F, alpha = .2) + theme_bw() +
   labs(x = "Distance from Rio Vista (km)", y = "Parameter value") + scale_x_reverse() +
-  facet_wrap(parameterLabel ~ ., scales = "free_y") +
+  facet_wrap(varfac ~ ., scales = "free_y", labeller = label_parsed) +
   scale_fill_viridis_c(option = "A", begin = .1, end = .8) +
   scale_color_viridis_c(option = "A", begin = .1, end = .8)
 
