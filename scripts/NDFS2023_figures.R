@@ -104,22 +104,7 @@ ndmelt <- reshape2::melt(ndfs23[, c("station_name",  "wdl_sam_collection_date", 
                                     "secchi", "water_temp", "do_probe", "sp_cond", "ec", "p_h", "microcyst", "veg_rank", "turb", "Zoop_Code")],
                          id.vars = c("station_name",  "wdl_sam_collection_date", "transect"))
 
-# Change variable labels
-varnamelookup <- data.frame(varname = c("secchi", "water_temp", "do_probe", 
-                                        "sp_cond", "ec", "p_h", "microcyst", 
-                                        "veg_rank", "turb", "Zoop_Code"),
-                            labels = c("Secchi~(m)", "Water~temp.~(degree*C)", "DO~(mg~L^-1)",
-                                       "SPC~(mu*S~cm^-1)", "EC~(mu*S~cm^-1)", "pH", "microcystis~rank",
-                                       "vegetation~rank", "Turbidity~(NTU)", "Zoop~score"))
-                            # labels = c("Copepoda~log(orgs.~m^-3)", "Insecta~log(orgs.~m^-3)",
-                            #            "Lg.~cladocera~log(orgs.~m^-3)", "Ostracoda~log(orgs.~m^-3)", "Rare~taxa~log(orgs.~m^-3)",
-                            #            "Rotifera~log(orgs.~m^-3)", "Sm.~cladocera~log(orgs.~m^-3)",
-                            #            "Chlorophyll-alpha~(mu*g~L^-1)", "Diss.~Organic~Carbon~(mu*g~L^-1)",
-                            #            "Mean~daily~DO~range(mg~L^-1)","Mean~daily~wtemp~range~(degree*C)", "Spec.~conductivity~(mu*S~cm^-1)"))
 
-ndmerge$varfac <- factor(ndmerge$variable, levels = ndmerge$variable,
-                        labels = varnamelookup[match(ndmerge$variable, varnamelookup$varname), "labels"])
-dput(unique(ndmerge$variable))
 # merge longitudinal river mile data with long format wq data
 ndmerge <- merge(ndmelt, stations, by = "station_name", all.x = T)
 ndmerge$value <- as.numeric(ndmerge$value)
@@ -131,8 +116,16 @@ ndmerge$date <- ifelse(ndmerge$transect == 1, "06-26",
                                             ifelse(ndmerge$transect == 5, "08-23", 
                                                    ifelse(ndmerge$transect == 6, "09-05", 
                                                           ifelse(ndmerge$transect == 7, "09-19", "10-03")))))))
-
-
+# Change variable labels
+varnamelookup <- data.frame(varname = c("secchi", "water_temp", "do_probe", 
+                                        "sp_cond", "ec", "p_h", "microcyst", 
+                                        "veg_rank", "turb", "Zoop_Code"),
+                            labels = c("Secchi~(m)", "Water~temp.~(degree*C)", "DO~(mg~L^-1)",
+                                       "SPC~(mu*S~cm^-1)", "EC~(mu*S~cm^-1)", "pH", "microcystis~rank",
+                                       "vegetation~rank", "Turbidity~(NTU)", "Zoop~score"))
+                           
+ndmerge$varfac <- factor(ndmerge$variable, levels = ndmerge$variable,
+                        labels = varnamelookup[match(ndmerge$variable, varnamelookup$varname), "labels"])
 
 if(saveOutput == T){png(paste("figures/NDFS2023_Fig3_wq%03d.png", sep = ""), 
     height = 6.5, width = 7.5, unit = "in", res = 1000)}
@@ -690,6 +683,13 @@ ggplot(contam_type, aes(x = site_fac, y = totconc), fill = "black") +
   # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
   labs(y = "Total concentration (ng/L)", x = NULL) +
   theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
+
+ggplot(contam_type, aes(x = date, y = totconc), fill = "black") + 
+  geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
+  facet_grid(pesticide_group ~ site_fac, scales = "free") +
+  # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
+  labs(y = "Total concentration (ng/L)", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
 # if(saveOutput == T){dev.off()}
 
 ##Contaminants
@@ -717,11 +717,132 @@ if(saveOutput == T){dev.off()}
 
 contam_bool <- contam_merge %>% group_by(Site, compound2) %>% 
   summarize(sumconc =1) %>% group_by(Site) %>% summarize(tot = sum(sumconc))
-
+contam_bool
 contam_bool$sumconc <- 1
 
 
+# Contaminants Zoop -------------------------------------------------------
 
+zoopcontam <- readxl::read_excel("data/YoloWaterandZoopPesticideResults_2023_Preliminary_to_DWR.xlsx", sheet = "Zoop")
+zoopcontam_lookup <- readxl::read_excel("data/OCRL_MDL_RL_AnalyteList_06062022.xlsx", skip = 4) %>% 
+  janitor::clean_names() %>% select(c(compound, chemical_class, pesticide_type, pesticide_group))
+
+# zoopcontam <- zoopcontam[is.na(contam$Project) == F,]
+zoopcontam$Date <- as.Date(zoopcontam$`Start date`)
+dput(colnames(zoopcontam))
+zoopcontam_long <- zoopcontam %>% select(-c("Atrazine-13C3", "Fipronil-13C4,15N2", "Imidacloprid-d4", "Metolachlor-13C6", 
+                                    "p,p'-DDE-13C12", "Permethrin-13C6", "Tebuconazole-13C3", "Trifluralin-d14")) %>% 
+  reshape2::melt(id.vars = c("Lab ID", "Project", "Site", "USGS Site Name", "USGS Site Number", 
+                             "Medium", "QC type", "Start date", "Start time", "Sample Mass (g)", "Date"), variable.name = "compound", value.name = "Result")
+               
+zoopcontam_long$compound2 <- tolower(zoopcontam_long$compound)
+zoopcontam_lookup$compound2 <- tolower(zoopcontam_lookup$compound)
+
+zoopcontam_merge <- merge(merge(zoopcontam_long, zoopcontam_lookup, by = "compound2", all.x = T),
+                      stations[, c("station_name", "dist")], by.x = "Site", by.y = "station_name", all.x = T)
+zoopcontam_merge[is.na(zoopcontam_merge$pesticide_type),]
+zoopcontam_merge <- zoopcontam_merge[is.na(zoopcontam_merge$Result) == F,]
+
+unique(zoopcontam_merge[is.na(zoopcontam_merge$chemical_class) == TRUE, "compound2"])
+
+# Add week to zoopcontam_merge data for plotting individual transects
+zoopcontam_merge$week <- format(zoopcontam_merge$Date, format = "%W")
+
+# Convert week to transect number
+zoopcontam_merge$transect <- as.character(as.integer(as.factor(zoopcontam_merge$week)))
+
+zoopcontam_merge$date <- ifelse(zoopcontam_merge$transect == 1, "06-26", 
+                            ifelse(zoopcontam_merge$transect == 2, "07-10", 
+                                   ifelse(zoopcontam_merge$transect == 3, "07-25", 
+                                          ifelse(zoopcontam_merge$transect == 4, "08-08", 
+                                                 ifelse(zoopcontam_merge$transect == 5, "08-23", 
+                                                        ifelse(zoopcontam_merge$transect == 6, "09-05", 
+                                                               ifelse(zoopcontam_merge$transect == 7, "09-19", "10-03")))))))
+
+zoopcontam_type <- zoopcontam_merge %>% group_by(Site, dist, date, pesticide_group) %>% 
+  summarize(totconc = sum(Result))
+
+unique(zoopcontam_type$Site)
+zoopcontam_type$site_fac <- factor(zoopcontam_type$Site, levels = c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR"))
+
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig9_Contaminant_zoop%03d.png", sep = ""), 
+                        height = 6, width = 7.5, unit = "in", res = 1000, family = "serif")}
+ggplot(zoopcontam_type, aes(x = site_fac, y = totconc), fill = "black") + 
+  geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
+  facet_grid(pesticide_group ~ date, scales = "free") +
+  # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
+  labs(y = "Total concentration (ng/L)", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
+
+ggplot(zoopcontam_type, aes(x = date, y = totconc), fill = "black") + 
+  geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
+  facet_grid(pesticide_group ~ site_fac, scales = "free") +
+  # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
+  labs(y = "Total concentration (ng/L)", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
+
+# if(saveOutput == T){dev.off()}
+
+##zoopcontaminants
+
+zoopcontam_id <- zoopcontam_merge %>% group_by(Site, dist, compound2, pesticide_group) %>% 
+  summarize(totconc = sum(Result))
+zoopcontam_id$site_fac <- factor(zoopcontam_id$Site, levels = c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR"))
+
+# if(saveOutput == T){png(paste("figures/NDFS2023_Fig8a_zoopcontaminant_wq%03d.png", sep = ""), 
+#                         height = 6, width = 7, unit = "in", res = 1000, family = "serif")}
+
+ggplot(zoopcontam_id, aes(x = reorder(compound2, -totconc), y = totconc)) + 
+  geom_bar(stat = "identity") + scale_y_log10() + facet_grid(site_fac ~ pesticide_group, scales = "free") +
+  labs(y = "Total concentration (ng/L)", x = "Compound") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(zoopcontam_id, aes(x = reorder(compound2, -totconc), y = totconc, fill = pesticide_group)) + 
+  geom_bar(stat = "identity") + scale_y_log10() + facet_grid(site_fac ~ ., scales = "fixed") +
+  labs(y = "Total concentration (ng/L)", x = "Compound", fill = "Pesticide class") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 55, hjust = 1),
+                     legend.position = "bottom")
+
+if(saveOutput == T){dev.off()}
+
+zoopcontam_bool <- zoopcontam_merge %>% group_by(Site, compound2) %>% 
+  summarize(sumconc =1) %>% group_by(Site) %>% summarize(tot = sum(sumconc))
+zoopcontam_bool
+zoopcontam_bool$sumconc <- 1
+
+zoopcontam_datebool <- zoopcontam_merge %>% group_by(Site, compound2, week) %>% 
+  summarize(sumconc =1) %>% group_by(Site, week) %>% summarize(tot = sum(sumconc))
+
+zoopcontam_datebool
+
+ggplot(zoopcontam_datebool, aes(x = week, y = tot)) + geom_bar(stat = "identity") + facet_wrap(Site ~ .)
+unique(wqlmerge$parameter)
+silica <- wqlmerge[wqlmerge$parameter == "Dissolved Silica (SiO2)", c("station_name.y", "result", "week")]
+
+silicamean <- silica %>% group_by(station_name.y, week) %>% summarize(meanres = mean(result, na.rm = T)) %>% data.frame()
+
+zoopcontam_dateboolmergesi <- merge(zoopcontam_datebool, silicamean, 
+                                  by.x = c("Site", "week"), by.y = c("station_name.y", "week"), all.x = T)
+# good one: "Dissolved Silica (SiO2)", 
+ggplot(zoopcontam_dateboolmergesi, aes(x = meanres, y = tot)) + geom_point(aes(color = Site)) + theme_bw() +
+  stat_smooth(method = "lm", aes(color = Site), se = F) + stat_smooth(method = "lm", color = "black", linewidth = 2) +
+  scale_color_brewer(palette = "Set1") + labs(title = "Silicate and contaminants relationship", 
+                                              y = "Total contaminants detected", x = "Silicate concentration")
+
+tss <- wqlmerge[wqlmerge$parameter == "Total Suspended Solids", c("station_name.y", "result", "week")]
+
+tssmean <- tss %>% group_by(station_name.y, week) %>% summarize(meanres = mean(result, na.rm = T)) %>% data.frame()
+
+zoopcontam_dateboolmergetss <- merge(zoopcontam_datebool, tssmean, 
+                                  by.x = c("Site", "week"), by.y = c("station_name.y", "week"), all.x = T)
+# good one: "Dissolved tss (SiO2)", 
+ggplot(zoopcontam_dateboolmergetss, aes(x = meanres, y = tot)) + geom_point(aes(color = Site)) + theme_bw() +
+  stat_smooth(method = "lm", aes(color = Site), se = F) + stat_smooth(method = "lm", color = "black", linewidth = 2) +
+  scale_color_brewer(palette = "Set1")
+
+summary(lm(tot ~ meanres * Site, data = zoopcontam_dateboolmerge))
+summary(lm(tot ~ meanres * Site, data = zoopcontam_dateboolmerge[]))
 # Predictive model --------------------------------------------------------
 
 # Zoop score as response variable, Explanatory variables: Do range, Turb, CHL, etc.
