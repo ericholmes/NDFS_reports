@@ -1,5 +1,6 @@
 ## Zoop scraper
 require(readxl)
+library(tidyverse)
 
 # Load and compile data ---------------------------------------------------
 
@@ -15,29 +16,29 @@ for(file in files){
     print(paste(file, i))
     tempdat <- data.frame(readxl::read_excel(paste0("data/zoopraw/ICF/", file), sheet = i, col_names = NA, .name_repair = "minimal"))
     
-    tdf <- data.frame(taxon = c(tempdat[21:45, 1], #Micro & nauplii
-                                tempdat[48:69, 1], #Cyclopoids
+    tdf <- data.frame(taxon = c(tempdat[21:46, 1], #Micro & nauplii
+                                tempdat[48:70, 1], #Cyclopoids
                                 tempdat[72:96, 1], #Calanoids
                                 tempdat[21:47, 17], #Cladocera
                                 tempdat[59:59, 17], #Harpacticoids
                                 tempdat[63:82, 17]), #Macrozoop
                       
-                      classification = c(rep("Microzooplankton and nauplii", 25),
-                                         rep("Cyclopoid", 22),
+                      classification = c(rep("Microzooplankton and nauplii", 26),
+                                         rep("Cyclopoid", 23),
                                          rep("Calanoid", 25),
                                          rep("Cladocera", 27),
                                          rep("Harpacticoid", 1),
                                          rep("Macrozooplankton", 20)),
                       
-                      count = as.numeric(c(tempdat[21:45, 9], #Micro & nauplii
-                                tempdat[48:69, 9], #Cyclopoids
+                      count = as.numeric(c(tempdat[21:46, 9], #Micro & nauplii
+                                tempdat[48:70, 9], #Cyclopoids
                                 tempdat[72:96, 9], #Calanoids
                                 tempdat[21:47, 25], #Cladocera
                                 tempdat[59:59, 25], #Harpacticoids
                                 tempdat[63:82, 25])), #Macrozoop
                       
-                      subsample = as.numeric(c(tempdat[21:45, 11], #Micro & nauplii
-                                    tempdat[48:69, 11], #Cyclopoids
+                      subsample = as.numeric(c(tempdat[21:46, 11], #Micro & nauplii
+                                    tempdat[48:70, 11], #Cyclopoids
                                     tempdat[72:96, 11], #Calanoids
                                     tempdat[21:47, 27], #Cladocera
                                     tempdat[59:59, 27], #Harpacticoids
@@ -54,9 +55,10 @@ for(file in files){
     tdf$vol_micro <- as.numeric(tempdat[12, 3])
     tdf$sub_meso <- as.numeric(tempdat[9, 22])
     tdf$sub_micro <- as.numeric(tempdat[12, 9])
+    tdf$net_mesh <- ifelse(tolower(tempdat[101,9]) == "x", "150", "50")
     
     zoopdat_icf <- rbind(zoopdat_icf, tdf)
-    
+    print(as.character(substr(tdf$sample_id, 1, 8))[1])
     rm(tempdat, tdf, i)
   } 
   rm(sheets, file)
@@ -126,16 +128,16 @@ zoopdat_icf$sample_date <- as.Date(zoopdat_icf$sample_date, format = "%Y%m%d")
 # }
 
 # Bind bsa and icf zoop data ---------------------------------------------
-
-zoopdat <- rbind(zoopdat_bsa, zoopdat_icf)
-zoopdat <- zoopdat[is.na(zoopdat$count) == F, ]
-
-critters <- zoopdat[duplicated(zoopdat$taxon) == F,c("taxon", "classification")]
-write.csv(critters, "data/critters.csv", row.names = F)
-
-zooplookup <- read.csv("C:/Users/eholmes/Documents/R/Projects/NDFS-Projects/IEP_Poster_2024/data/Zoop/YB_TaxonomyTable.csv")
-
-unique(zoopdat$taxon) %in% zooplookup$Organism
+# 
+# zoopdat <- rbind(zoopdat_bsa, zoopdat_icf)
+# zoopdat <- zoopdat[is.na(zoopdat$count) == F, ]
+# 
+# critters <- zoopdat[duplicated(zoopdat$taxon) == F,c("taxon", "classification")]
+# write.csv(critters, "data/critters.csv", row.names = F)
+# 
+# zooplookup <- read.csv("C:/Users/eholmes/Documents/R/Projects/NDFS-Projects/IEP_Poster_2024/data/Zoop/YB_TaxonomyTable.csv")
+# 
+# unique(zoopdat$taxon) %in% zooplookup$Organism
 
 
 # Add rotations data ------------------------------------------------------
@@ -158,10 +160,11 @@ ltd$rotations <- ifelse(ltd$rotations > 990000, 1000000 - ltd$flow_meter_end_150
 ltd$sampling_event_date <- as.Date(ltd$sampling_event_date)
 ggplot(ltd, aes(x = rotations)) + geom_histogram()
 
+ltd <- data.frame(ltd)
 
-dput(colnames(ltd))
-
-zoop <- merge(zoopdat_icf, ltd, by.x = c("station_id", "sample_date"), by.y = c("sampling_area_number", "sampling_event_date"), all.x = T)
+zoop <- merge(zoopdat_icf[zoopdat_icf$net_mesh == "150",], as.data.frame(ltd), 
+              by.x = c("station_id", "sample_date"), by.y = c("sampling_area_number", "sampling_event_date"), all.x = T)
+ltdrvb <- ltd[ltd$sampling_area_number == "RVB" & ltd$sampling_event_date == as.Date("2023-09-06"),]
 
 # CPUE calculation --------------------------------------------------------
 
@@ -177,4 +180,62 @@ zoop$sampfraction <- ifelse(zoop$classification == "Microzooplankton and nauplii
 
 
 zoop$CPUE <-  round((zoop$count/zoop$sampfraction)/zoop$volume,3)
+
 ggplot(zoop, aes(x = CPUE)) + geom_histogram() + scale_x_log10()
+ggplot(zoop, aes(x = CPUE)) + geom_histogram() + scale_x_log10() + facet_wrap(station_id ~ .)
+
+
+# Zoop bar and area plots -------------------------------------------------
+
+zoop$jday <- as.integer(format(zoop$sample_date, format = "%j"))
+zoop$Week <- as.integer(format(zoop$sample_date, format = "%W"))
+
+zoopply <- zoop %>% group_by(station_id, jday, year, classification) %>% 
+  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup()
+
+zoopbarply <- zoop[zoop$classification != "Microzooplankton and nauplii",] %>% 
+  group_by(station_id, Week, jday, year, classification) %>% 
+  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
+zoopbarply$station_id <- factor(zoopbarply$station_id, levels = 
+                                   c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
+
+microzoopbarply <- zoop %>% group_by(station_id, Week, year, classification) %>% 
+  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
+microzoopbarply$station_id <- factor(microzoopbarply$station_id, levels = 
+                                        c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
+unique(zoop$Genus)
+unique(zoop$Family)
+unique(zoop$Order)
+
+psuedozoopbarply <- zoop[zoop$classification %in% "Calanoid"& zoop$classification != "Microzooplankton and nauplii",] %>% 
+  group_by(station_id, Week, year, classification) %>% 
+  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
+psuedozoopbarply$station_id <- factor(psuedozoopbarply$station_id, levels = 
+                                         c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
+
+ggplot(microzoopbarply[microzoopbarply$Week %in% 25:40,], aes(x = Week, y = perc)) + 
+  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
+  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 2) + facet_grid(. ~ station_id, space = "free")
+
+ggplot(zoopbarply[zoopbarply$Week %in% 25:40 & is.na(zoopbarply$station_id) == F,], aes(x = jday, y = perc)) + 
+  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
+  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 15) + facet_grid(. ~ station_id, space = "free")
+
+ggplot(zoopbarply[zoopbarply$Week %in% 25:40 & is.na(zoopbarply$station_id) == F,], aes(x = jday, y = sumtot)) + 
+  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
+  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 15) + facet_grid(. ~ station_id, space = "free")
+
+ggplot(microzoopbarply[microzoopbarply$Week %in% 25:40 & is.na(microzoopbarply$station_id) == F,], aes(x = Week, y = sumtot)) + 
+  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
+  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 2) + facet_grid(. ~ station_id, space = "free")
+
+ggplot(psuedozoopbarply[psuedozoopbarply$Week %in% 25:40 & is.na(psuedozoopbarply$station_id) == F &
+                          psuedozoopbarply$sumtot < 60000,], aes(x = Week, y = sumtot)) + 
+  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
+  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 2) + facet_grid(. ~ station_id, space = "free")
+
+
+sort(unique(zoop$Week))
+sort(unique(zoop$sample_date))
+
+zoopdates <- zoop[duplicated(zoop$sample_date) == F, c("Week", "sample_date")]
