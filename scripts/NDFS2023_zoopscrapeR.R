@@ -184,58 +184,7 @@ zoop$CPUE <-  round((zoop$count/zoop$sampfraction)/zoop$volume,3)
 ggplot(zoop, aes(x = CPUE)) + geom_histogram() + scale_x_log10()
 ggplot(zoop, aes(x = CPUE)) + geom_histogram() + scale_x_log10() + facet_wrap(station_id ~ .)
 
-
-# Zoop bar and area plots -------------------------------------------------
-
 zoop$jday <- as.integer(format(zoop$sample_date, format = "%j"))
 zoop$Week <- as.integer(format(zoop$sample_date, format = "%W"))
 
-zoopply <- zoop %>% group_by(station_id, jday, year, classification) %>% 
-  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup()
-
-zoopbarply <- zoop[zoop$classification != "Microzooplankton and nauplii",] %>% 
-  group_by(station_id, Week, jday, year, classification) %>% 
-  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
-zoopbarply$station_id <- factor(zoopbarply$station_id, levels = 
-                                   c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
-
-microzoopbarply <- zoop %>% group_by(station_id, Week, year, classification) %>% 
-  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
-microzoopbarply$station_id <- factor(microzoopbarply$station_id, levels = 
-                                        c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
-unique(zoop$Genus)
-unique(zoop$Family)
-unique(zoop$Order)
-
-psuedozoopbarply <- zoop[zoop$classification %in% "Calanoid"& zoop$classification != "Microzooplankton and nauplii",] %>% 
-  group_by(station_id, Week, year, classification) %>% 
-  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
-psuedozoopbarply$station_id <- factor(psuedozoopbarply$station_id, levels = 
-                                         c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
-
-ggplot(microzoopbarply[microzoopbarply$Week %in% 25:40,], aes(x = Week, y = perc)) + 
-  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
-  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 2) + facet_grid(. ~ station_id, space = "free")
-
-ggplot(zoopbarply[zoopbarply$Week %in% 25:40 & is.na(zoopbarply$station_id) == F,], aes(x = jday, y = perc)) + 
-  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
-  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 15) + facet_grid(. ~ station_id, space = "free")
-
-ggplot(zoopbarply[zoopbarply$Week %in% 25:40 & is.na(zoopbarply$station_id) == F,], aes(x = jday, y = sumtot)) + 
-  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
-  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 15) + facet_grid(. ~ station_id, space = "free")
-
-ggplot(microzoopbarply[microzoopbarply$Week %in% 25:40 & is.na(microzoopbarply$station_id) == F,], aes(x = Week, y = sumtot)) + 
-  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
-  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 2) + facet_grid(. ~ station_id, space = "free")
-
-ggplot(psuedozoopbarply[psuedozoopbarply$Week %in% 25:40 & is.na(psuedozoopbarply$station_id) == F &
-                          psuedozoopbarply$sumtot < 60000,], aes(x = Week, y = sumtot)) + 
-  scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") +
-  geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 2) + facet_grid(. ~ station_id, space = "free")
-
-
-sort(unique(zoop$Week))
-sort(unique(zoop$sample_date))
-
-zoopdates <- zoop[duplicated(zoop$sample_date) == F, c("Week", "sample_date")]
+save(zoop, file = "data/NDFS2023_zoop.Rdata")

@@ -15,6 +15,7 @@ load("data/NDFS2023_wqcont_wdl.Rdata")
 load("data/NDFS2023_wqcont_cdec.Rdata")
 load("data/NDFS2023_wqcont_nwis.Rdata")
 load("data/NDFS2023_wqcont_all.Rdata")
+load("data/NDFS2023_zoop.Rdata")
 
 # Get column names from working WQ data
 header = readxl::read_excel("data/YBFMP_WQ_Data_WORKING_20221006.xlsx", skip = 1) %>% colnames()
@@ -297,6 +298,93 @@ ggplot(ndmerge[ndmerge$variable == "Zoop_Code" & is.na(ndmerge$value) == F,],
 
 if(saveOutput == T){dev.off()}
 
+
+# Zooplankton community ----------------------------------------------------
+
+# Zoop bar and area plots
+
+zoopply <- zoop %>% group_by(station_id, Week, jday, sample_date, year, classification) %>% 
+  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup()
+
+zoopbarply <- zoop[zoop$classification != "Microzooplankton and nauplii",] %>% 
+  group_by(station_id, Week, jday, sample_date, year, classification) %>% 
+  summarize(sumtot = sum(CPUE, na.rm = T)) %>% ungroup() %>% group_by(station_id, Week, year) %>% mutate(perc = sumtot/sum(sumtot))
+zoopbarply$station_id <- factor(zoopbarply$station_id, levels = 
+                                  c("RCS", "WWT", "RD22", "I80", "LIS", "STTD","BL5", "PRS", "LIB", "RYI", "RVB", "SHR"))
+
+(zoopbarperc <- ggplot(zoopbarply[zoopbarply$Week %in% 25:40 & is.na(zoopbarply$station_id) == F,], aes(x = sample_date, y = perc)) + 
+    scale_fill_brewer(palette = "Set1") + theme_bw() + theme(legend.position = "bottom") + 
+    labs(fill = NULL, y = "Proportion", x = NULL) +
+    geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 15) + facet_grid(. ~ station_id, space = "free"))
+
+(zoopbarsum <- ggplot(zoopbarply[zoopbarply$Week %in% 25:40 & is.na(zoopbarply$station_id) == F,], aes(x = sample_date, y = sumtot)) + 
+    scale_fill_brewer(palette = "Set1") + theme_bw() + 
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 60, hjust = 1)) +
+    scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+    labs(fill = NULL, y = "Density (ind*m^-3)",x = NULL) +
+    geom_bar(aes(fill = classification), stat = "identity", position = "stack", width = 15) + facet_grid(. ~ station_id, space = "free"))
+
+png(paste("figures/NDFS2023_Fig4_zoopbars%03d.png", sep = ""), 
+                        height = 7.5, width = 8, unit = "in", res = 1000)
+cowplot::plot_grid(zoopbarperc + theme(legend.position = "none", axis.text.x = element_blank()), 
+                   zoopbarsum, 
+        nrow = 2, rel_heights = c(9,10), align = "v")
+dev.off()
+
+# NMDS
+library(vegan)
+library(ggrepel)
+zoopcast <- reshape2::dcast(zoopply[zoopply$Week %in% 25:40, ],
+                          formula = station_id + jday + sample_date + year ~ classification, value.var = 'sumtot', fun.aggregate = sum, fill = 0)
+
+zoopcast <- zoopcast[is.na(zoopcast$station_id) == F & is.na(zoopcast$year) == F & zoopcast$station_id != "SHR",]
+# melt back to long form with the added zeros from the previous casting step
+# zoopply <- melt(zoopcast, id.vars = c("station_id", "jday", "year"), value.name = 'total', variable.name = "classification")
+
+com2016 <- decostand(zoopcast[, c(5:7,9)], method = "chi.square")
+nmds2016 <- metaMDS(com2016, autotransform = F, na.rm = T)
+
+data.scores16 <- as.data.frame(scores(nmds2016, "sites")) #Using the scores function from vegan to extract the site scores and convert to a data.frame
+data.scores16$station_id <- zoopcast[, "station_id"] #create a column of site names, from the rownames of data.scores
+data.scores16$jday <- zoopcast[, "jday"]
+data.scores16$sample_date <- zoopcast[, "sample_date"]
+data.scores16 <- merge(data.scores16, stations, by.x = "station_id", by.y = "station_name", all.x = T)
+data.scores16$distsite <- paste(sprintf("%02d",round(data.scores16$dist)), data.scores16$station_id, sep = "-")
+species.scores16 <- as.data.frame(scores(nmds2016, "species"))  #Using the scores function from vegan to extract the species scores and convert to a data.frame
+species.scores16$species <- rownames(species.scores16)  # create a column of species, from the rownames of species.scores
+
+png("figures/NDFS_zoop_NMDS_dist_%03d.png",
+    family = "serif", height = 6, width = 7, units = "in", res = 1000)
+range(data.scores16$NMDS1)
+range(data.scores16$NMDS2)
+ggplot() + 
+  stat_ellipse(data = data.scores16, aes(x = NMDS1, y = NMDS2, fill = distsite, group = station_id), geom = "polygon", alpha = .1) +
+  stat_ellipse(data = data.scores16, aes(x = NMDS1, y = NMDS2, color = distsite, group = station_id), alpha = .9) +
+  geom_point(data = data.scores16, aes(x = NMDS1, y = NMDS2, color = distsite, shape = distsite)) +
+  geom_point(data = species.scores16, aes(x = NMDS1, y=NMDS2), size = .8) +
+  # coord_cartesian(xlim = c(-1,1), ylim = c(-1,1)) + 
+  # geom_path(data = data.scores16, aes(x = NMDS1, y = NMDS2, color = distsite, group = station_id)) +
+  geom_text_repel(data=species.scores16,aes(x=NMDS1,y=NMDS2,label=species), alpha=0.9, size = 3, force = 1, bg.color = "white",
+                  bg.r = 0.2) +
+  scale_color_viridis_d(option = "A", begin = .1, end = .8)+
+  scale_fill_viridis_d(option = "A", begin = .1, end = .8) + 
+  scale_shape_manual(values = 1:10) +
+  theme_bw(base_family = "serif") + theme(legend.title = element_blank()) 
+  
+dev.off()
+
+## SPC and NMDS1
+
+ndmerge$sample_date <- as.Date(paste0("2023-",ndmerge$date))
+
+spcnmds <- merge(ndmerge[ndmerge$variable == "sp_cond",], 
+      data.scores16[c("station_id", "sample_date", "NMDS1", "NMDS2")], 
+      by.x = c("station_name", "sample_date"),
+      by.y = c("station_id", "sample_date"))
+
+ggplot(spcnmds, aes(x = value, y = NMDS1)) + geom_point()
+ggplot(spcnmds[spcnmds$station_name == "STTD",], aes(x = value, y = NMDS1)) + geom_point()
+               
 # Continuous data plotting ------------------------------------------------
 load("data/NDFS2023_wqcont_all.Rdata")
 wqcont_all <- merge(wqcont_all, stations[,c("station_name", "dist")], by.x = "site_code", by.y = "station_name", all.x = T)
@@ -720,6 +808,31 @@ contam_bool <- contam_merge %>% group_by(Site, compound2) %>%
 contam_bool
 contam_bool$sumconc <- 1
 
+contam_datebool <- contam_merge %>% group_by(Site, pesticide_group, compound2, week, date) %>% 
+  summarize(sumconc = 1, actual_res = value) %>% group_by(Site, week, date) %>% 
+  summarize(tot = sum(sumconc), totconc = sum(actual_res))
+
+contam_bool$site_fac <- factor(contam_bool$Site, levels = rev(c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR")))
+
+contam_datebool$site_fac <- factor(contam_datebool$Site, levels = rev(c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR")))
+
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig8_contaminant_wqbool%03d.png", sep = ""),
+                        height = 5, width = 7, unit = "in", res = 1000, family = "serif")}
+cowplot::plot_grid(ggplot(contam_datebool, aes(x = date, y = site_fac, fill = tot)) + 
+                     geom_tile(show.legend = F) +
+                     # scale_fill_viridis_c(option = "C", begin = .2) + 
+                     labs(x = NULL, y = NULL) +
+                     scale_fill_gradient(low = "#8BD3E6", high = "#FF6D6A") + 
+                     theme_bw() + geom_text(aes(label = tot)),
+                   ggplot(contam_bool, aes(x = "all", y = site_fac, fill = tot)) + 
+                     geom_tile(show.legend = F) +
+                     # scale_fill_viridis_c(option = "C", begin = .2) + 
+                     labs(x = NULL, y = NULL) +
+                     scale_fill_gradient(low = "#8BD3E6", high = "#FF6D6A") + 
+                     theme_bw() + geom_text(aes(label = tot)) + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
+                   nrow = 1, rel_widths = c(9,1.5))
+
+dev.off()
 
 # Contaminants Zoop -------------------------------------------------------
 
@@ -771,15 +884,29 @@ ggplot(zoopcontam_type, aes(x = site_fac, y = totconc), fill = "black") +
   geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
   facet_grid(pesticide_group ~ date, scales = "free") +
   # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
-  labs(y = "Total concentration (ng/L)", x = NULL) +
+  labs(y = "Total concentration (ng/g)", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
+
+ggplot(zoopcontam_type, aes(x = site_fac, y = totconc, fill = pesticide_group)) + 
+  geom_bar(stat = "identity", position = "stack") + 
+  facet_grid(. ~ date, scales = "free") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(y = "Total concentration (ng/g)", x = NULL) +
   theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
 
 ggplot(zoopcontam_type, aes(x = date, y = totconc), fill = "black") + 
   geom_bar(stat = "identity", position = "dodge", show.legend = F) + 
   facet_grid(pesticide_group ~ site_fac, scales = "free") +
   # scale_fill_viridis_c(option = "C", begin = .05, end = .91) +
-  labs(y = "Total concentration (ng/L)", x = NULL) +
+  labs(y = "Total concentration (ng/g)", x = NULL) +
   theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1))
+
+ggplot(zoopcontam_type, aes(x = date, y = totconc, fill = pesticide_group)) + 
+  geom_bar(stat = "identity", position = "stack") + 
+  facet_grid(. ~ site_fac, scales = "free") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(y = "Total concentration (ng/g)", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 65, hjust = 1), legend.position = "bottom")
 
 # if(saveOutput == T){dev.off()}
 
@@ -811,12 +938,40 @@ zoopcontam_bool <- zoopcontam_merge %>% group_by(Site, compound2) %>%
 zoopcontam_bool
 zoopcontam_bool$sumconc <- 1
 
-zoopcontam_datebool <- zoopcontam_merge %>% group_by(Site, compound2, week) %>% 
-  summarize(sumconc =1) %>% group_by(Site, week) %>% summarize(tot = sum(sumconc))
+zoopcontam_datebool <- zoopcontam_merge %>% group_by(Site, pesticide_group, compound2, week, date) %>% 
+  summarize(sumconc = 1, actual_res = Result) %>% group_by(Site, week, date) %>% 
+  summarize(tot = sum(sumconc), totconc = sum(actual_res))
 
-zoopcontam_datebool
+zoopcontam_bool$site_fac <- factor(zoopcontam_bool$Site, levels = rev(c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR")))
+
+zoopcontam_datebool$site_fac <- factor(zoopcontam_datebool$Site, levels = rev(c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR")))
 
 ggplot(zoopcontam_datebool, aes(x = week, y = tot)) + geom_bar(stat = "identity") + facet_wrap(Site ~ .)
+ggplot(zoopcontam_datebool, aes(x = week, y = totconc)) + geom_bar(stat = "identity") + facet_wrap(Site ~ .)
+
+
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig10_zoopcontaminant_wq%03d.png", sep = ""),
+                        height = 5, width = 7, unit = "in", res = 1000, family = "serif")}
+cowplot::plot_grid(ggplot(zoopcontam_datebool, aes(x = date, y = site_fac, fill = tot)) + 
+  geom_tile(show.legend = F) +
+  # scale_fill_viridis_c(option = "C", begin = .2) + 
+  labs(x = NULL, y = NULL) +
+  scale_fill_gradient(low = "#8BD3E6", high = "#FF6D6A") + 
+  theme_bw() + geom_text(aes(label = tot)),
+ggplot(zoopcontam_bool, aes(x = "all", y = site_fac, fill = tot)) + 
+  geom_tile(show.legend = F) +
+  # scale_fill_viridis_c(option = "C", begin = .2) + 
+  labs(x = NULL, y = NULL) +
+  scale_fill_gradient(low = "#8BD3E6", high = "#FF6D6A") + 
+  theme_bw() + geom_text(aes(label = tot)) + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
+nrow = 1, rel_widths = c(9,1.5))
+
+dev.off()
+ggplot(zoopcontam_datebool, aes(x = date, y = site_fac, fill = totconc)) + geom_tile() +
+  scale_fill_viridis_c(option = "C", begin = .2) + theme_bw() + geom_text(aes(label = round(totconc)))
+
+ggplot(zoopcontam_datebool, aes(x = week, y = Site, fill = tot)) + geom_tile()
+
 unique(wqlmerge$parameter)
 silica <- wqlmerge[wqlmerge$parameter == "Dissolved Silica (SiO2)", c("station_name.y", "result", "week")]
 
@@ -824,12 +979,13 @@ silicamean <- silica %>% group_by(station_name.y, week) %>% summarize(meanres = 
 
 zoopcontam_dateboolmergesi <- merge(zoopcontam_datebool, silicamean, 
                                   by.x = c("Site", "week"), by.y = c("station_name.y", "week"), all.x = T)
-# good one: "Dissolved Silica (SiO2)", 
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig10_Contaminant_zoop_and_silica%03d.png", sep = ""), 
+                        height = 4, width = 6, unit = "in", res = 1000, family = "serif")}
 ggplot(zoopcontam_dateboolmergesi, aes(x = meanres, y = tot)) + geom_point(aes(color = Site)) + theme_bw() +
-  stat_smooth(method = "lm", aes(color = Site), se = F) + stat_smooth(method = "lm", color = "black", linewidth = 2) +
+  stat_smooth(method = "lm", aes(color = Site), se = F) + stat_smooth(method = "lm", color = "black") +
   scale_color_brewer(palette = "Set1") + labs(title = "Silicate and contaminants relationship", 
                                               y = "Total contaminants detected", x = "Silicate concentration")
-
+dev.off()
 tss <- wqlmerge[wqlmerge$parameter == "Total Suspended Solids", c("station_name.y", "result", "week")]
 
 tssmean <- tss %>% group_by(station_name.y, week) %>% summarize(meanres = mean(result, na.rm = T)) %>% data.frame()
@@ -841,8 +997,9 @@ ggplot(zoopcontam_dateboolmergetss, aes(x = meanres, y = tot)) + geom_point(aes(
   stat_smooth(method = "lm", aes(color = Site), se = F) + stat_smooth(method = "lm", color = "black", linewidth = 2) +
   scale_color_brewer(palette = "Set1")
 
-summary(lm(tot ~ meanres * Site, data = zoopcontam_dateboolmerge))
-summary(lm(tot ~ meanres * Site, data = zoopcontam_dateboolmerge[]))
+summary(lm(tot ~ meanres * Site, data = zoopcontam_dateboolmergesi))
+
+summary(lm(tot ~ meanres, data = zoopcontam_dateboolmergesi[zoopcontam_dateboolmergesi$Site == "RD22",]))
 # Predictive model --------------------------------------------------------
 
 # Zoop score as response variable, Explanatory variables: Do range, Turb, CHL, etc.
