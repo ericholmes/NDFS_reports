@@ -4,89 +4,22 @@ library(tidyverse)
 
 # Load and compile data ---------------------------------------------------
 
-files <- list.files("data/zoopraw/ICF")
+files <- list.files("data/zoopraw", pattern = "xlsx")
 
-zoopdat_icf <- data.frame()
-
-for(file in files){
-  sheets <- readxl::excel_sheets(paste0("data/zoopraw/ICF/", file))
-  sheets <- sheets[grepl(sheets, pattern = " ") & !grepl(sheets, pattern = "COC")]
-  
-  for(i in sheets){
-    print(paste(file, i))
-    tempdat <- data.frame(readxl::read_excel(paste0("data/zoopraw/ICF/", file), sheet = i, col_names = NA, .name_repair = "minimal"))
-    
-    tdf <- data.frame(taxon = c(tempdat[21:46, 1], #Micro & nauplii
-                                tempdat[48:70, 1], #Cyclopoids
-                                tempdat[72:96, 1], #Calanoids
-                                tempdat[21:47, 17], #Cladocera
-                                tempdat[59:59, 17], #Harpacticoids
-                                tempdat[63:82, 17]), #Macrozoop
-                      
-                      classification = c(rep("Microzooplankton and nauplii", 26),
-                                         rep("Cyclopoid", 23),
-                                         rep("Calanoid", 25),
-                                         rep("Cladocera", 27),
-                                         rep("Harpacticoid", 1),
-                                         rep("Macrozooplankton", 20)),
-                      
-                      count = as.numeric(c(tempdat[21:46, 9], #Micro & nauplii
-                                tempdat[48:70, 9], #Cyclopoids
-                                tempdat[72:96, 9], #Calanoids
-                                tempdat[21:47, 25], #Cladocera
-                                tempdat[59:59, 25], #Harpacticoids
-                                tempdat[63:82, 25])), #Macrozoop
-                      
-                      subsample = as.numeric(c(tempdat[21:46, 11], #Micro & nauplii
-                                    tempdat[48:70, 11], #Cyclopoids
-                                    tempdat[72:96, 11], #Calanoids
-                                    tempdat[21:47, 27], #Cladocera
-                                    tempdat[59:59, 27], #Harpacticoids
-                                    tempdat[63:82, 27])) #Macrozoop
-                      ) 
-    tdf <- tdf[is.na(tdf$count) == F, ]
-    tdf[is.na(tdf$subsample),] <- mean(tdf$subsample, na.rm = T)
-    tdf$file <- file
-    tdf$sheet_id <- i
-    tdf$project <- tempdat[6, 1]
-    tdf$sample_id <- tempdat[9, 1]
-    tdf$station_id <- tempdat[6, 22]
-    
-    tdf$sample_date <- as.character(substr(tdf$sample_id, 1, 8))
-    tdf$sample_time <- as.character(substr(tdf$sample_id, 10, 13))
-    tdf$vol_meso <- as.numeric(tempdat[9, 13])
-    tdf$vol_micro <- as.numeric(tempdat[12, 3])
-    tdf$sub_meso <- as.numeric(tempdat[9, 22])
-    tdf$sub_micro <- as.numeric(tempdat[12, 9])
-    tdf$net_mesh <- ifelse(!is.na(tempdat[101,10]),
-                           ifelse(tolower(tempdat[101,9]) == "x", "150", "50"), "Farfegnugan")
-    
-    zoopdat_icf <- rbind(zoopdat_icf, tdf)
-    print(as.character(substr(tdf$sample_id, 1, 8))[1])
-    rm(tempdat, tdf, i)
-  } 
-  rm(sheets, file)
-}
-
-zoopdat_icf$sample_date <- as.Date(zoopdat_icf$sample_date, format = "%Y%m%d")
-
-# # BSA ---------------------------------------------------------------------
-
-files <- list.files("data/zoopraw/BSA")
-
-index_bsa <-data.frame()
+#Create empty zoop index data frame
+index_zoop <-data.frame()
 
 for(file in files){
-  sheets <- readxl::excel_sheets(paste0("data/zoopraw/BSA/", file))
+  sheets <- readxl::excel_sheets(paste0("data/zoopraw/", file))
   sheets <- sheets[grepl(sheets, pattern = " ") & !grepl(sheets, pattern = "COC") & 
                      !grepl(sheets, pattern = "RPD") & !grepl(sheets, pattern = "QAQC") &
                               !grepl(sheets, pattern = "DUP")]
   for(i in sheets){
-    print(paste(file, i))
+    print(paste("Creating index for:", file, i))
     
-    tempdat <- data.frame(readxl::read_excel(paste0("data/zoopraw/BSA/", file), sheet = i, col_names = NA, .name_repair = "minimal"))
+    tempdat <- data.frame(readxl::read_excel(paste0("data/zoopraw/", file), sheet = i, col_names = NA, .name_repair = "minimal"))
     
-    ##develop sheet index
+    ##develop sheet index for finding data in sheets with different row numbers from different contractors
     vec_1 <- tempdat[,1]
     vec_17 <- tempdat[,17]
     mn_start_index <- grep("MICROZOOPLANKTON & NAUPLII", tempdat[,1])
@@ -97,7 +30,7 @@ for(file in files){
     macro_start_index <- grep("MACROZOOPLANKTON", tempdat[,17])
     grep("Unable", tempdat[,18])
     
-    index_bsa <- rbind(index_bsa, data.frame(
+    index_zoop <- rbind(index_zoop, data.frame(
       file = file,
       sheet = i,
       sample_id = tempdat[9, 1], 
@@ -121,19 +54,20 @@ for(file in files){
   rm(sheets, file)
 }
 
-zoopdat_bsa <- data.frame()
+#Create empty raw zoop data frame
+zoopdat_raw <- data.frame()
 
 for(file in files){
-  sheets <- readxl::excel_sheets(paste0("data/zoopraw/BSA/", file))
+  sheets <- readxl::excel_sheets(paste0("data/zoopraw/", file))
   sheets <- sheets[grepl(sheets, pattern = " ") & !grepl(sheets, pattern = "COC") & 
                      !grepl(sheets, pattern = "RPD") & !grepl(sheets, pattern = "QAQC") &
                      !grepl(sheets, pattern = "DUP")]
   for(i in sheets){
     
     
-    print(paste(file, i))
-    tempdat <- data.frame(readxl::read_excel(paste0("data/zoopraw/BSA/", file), sheet = i, col_names = NA, .name_repair = "minimal"))
-    tempindex <- index_bsa[index_bsa$file == file & index_bsa$sheet == i,]
+    print(paste("Compiling data for:", file, i))
+    tempdat <- data.frame(readxl::read_excel(paste0("data/zoopraw/", file), sheet = i, col_names = NA, .name_repair = "minimal"))
+    tempindex <- index_zoop[index_zoop$file == file & index_zoop$sheet == i,]
     
     tdf <- data.frame(taxon = c(tempdat[tempindex$mn_start:tempindex$mn_end, 1], #Micro & nauplii
                                 tempdat[tempindex$cyc_start:tempindex$cyc_end, 1], #Cyclopoids
@@ -165,7 +99,8 @@ for(file in files){
     )
     
     tdf <- tdf[is.na(tdf$count) == F, ]
-    tdf[is.na(tdf$subsample),] <- mean(tdf$subsample, na.rm = T)
+    tdf[is.na(tdf$subsample),"subsample"] <- mean(tdf$subsample, na.rm = T)
+    
     if(nrow(tdf)>0){
       tdf$file <- file
       tdf$sheet_id <- i
@@ -175,32 +110,37 @@ for(file in files){
       tdf$station_id <- tempdat[grep("Station", tempdat[,23]) - 1, 22]
       tdf$sample_date <- paste0(tempdat[grep("month", tempdat[,6]) - 1, c(10:13,6:9)], collapse = "")
       tdf$sample_time <- tempdat[grep("Time", tempdat[,6]) - 1, 6]
+      
+      ##Gather volumes from sample processing. Using sum(VOLUME CELLS, na.rm = T) fixes 
+      ##location issue of data being entered inconsistently across several cells
       tdf$vol_meso <- sum(as.numeric(tempdat[grep("V1", tempdat[,11]), 13:17]), na.rm = T)
       tdf$vol_micro <- sum(as.numeric(tempdat[grep("V2", tempdat[,1]), c(3,4)]), na.rm = T)
       tdf$sub_meso <- sum(as.numeric(tempdat[grep("Sub1", tempdat[,19]), 21:23]), na.rm = T)
       
+      ##Solve problem of no data for micro volume: if length zero, then replace with NA
       tdf$sub_micro <- ifelse(length(sum(as.numeric(tempdat[grep("Sub2", tempdat[,6]), c(8,9)]), na.rm = T)) > 0,
                               sum(as.numeric(tempdat[grep("Sub2", tempdat[,6]),  c(8,9)]), na.rm = T), NA)
-      #Solve ICF artifact
+      
+      ##Solve ICF sheet artifact: if micro volume is zero, then use macro volume instead
       tdf$vol_micro <- ifelse(tdf$vol_micro == 0, tdf$vol_meso, tdf$vol_micro)
       tdf$sub_micro <- ifelse(tdf$sub_micro == 0, tdf$sub_meso, tdf$sub_micro)
       
       tdf$net_mesh <- ifelse(tolower(tempdat[grep("150um", tempdat[,10]),9]) == "x", "150", "50")
       
-      zoopdat_bsa <- rbind(zoopdat_bsa, tdf[is.na(tdf$count) == F, ])
+      zoopdat_raw <- rbind(zoopdat_raw, tdf[is.na(tdf$count) == F, ])
     }
   }
 }
 
-zoopdat_bsa$sample_date <- as.Date(zoopdat_bsa$sample_date, format = "%Y%m%d")
+zoopdat_raw$sample_date <- as.Date(zoopdat_raw$sample_date, format = "%Y%m%d")
 
-# Bind bsa and icf zoop data ---------------------------------------------
+# merge and clean zoop data ---------------------------------------------
 
-# zoopdat <- rbind(zoopdat_bsa, zoopdat_icf)
-zoopdat <- zoopdat_bsa
+zoopdat <- zoopdat_raw
 zoopdat <- zoopdat[is.na(zoopdat$count) == F, ]
 
-critters <- zoopdat[duplicated(zoopdat$taxon) == F,c("taxon", "classification")]
+## Optional: export unique critters for developing lookup table
+critters <- zoopdat[duplicated(zoopdat$taxon) == F, c("taxon", "classification")]
 # write.csv(critters, "data/critters.csv", row.names = F)
 
 zooplookup <- read.csv("C:/Users/eholmes/Documents/R/Projects/NDFS-Projects/IEP_Poster_2024/data/Zoop/YB_TaxonomyTable.csv")
@@ -211,8 +151,10 @@ unique(paste(zoopdat[is.na(zoopdat$net_mesh), "sample_date"], zoopdat[is.na(zoop
 
 # Add rotations data ------------------------------------------------------
 
+##Gather lower trophic metadata column names
 ltdnames <- colnames(janitor::clean_names(readxl::read_excel("data/YBFMP_LowerTrophic_Data_WORKING_20231102.xlsx", skip = 1)))
 
+##Load lower trophic metadata and apply coumn names from previous step
 ltd <- readxl::read_excel("data/YBFMP_LowerTrophic_Data_WORKING_20231102.xlsx", skip = 3, col_names = ltdnames)
 
 ltd$year <- format(ltd$sampling_event_date, format = "%Y")
@@ -231,6 +173,7 @@ ggplot(ltd, aes(x = rotations)) + geom_histogram()
 
 ltd <- data.frame(ltd)
 
+##Load historical rotations data
 histrots <- read.csv("data/zoopraw/Zoop_rotations_historical.csv")
 
 colnames(histrots) <-c("PhysicalDataID", "sampling_event_date", "sampling_area_number", "flow_meter_start_150", 
@@ -239,11 +182,13 @@ colnames(histrots) <-c("PhysicalDataID", "sampling_event_date", "sampling_area_n
 
 histrots$sampling_event_date <- as.Date(histrots$sampling_event_date, format = "%m/%d/%Y")
 
+##Combine lower trophic metadata and historical roations data
 ltdfull <- rbind(ltd[,c("sampling_event_date", "sampling_area_number", "flow_meter_start_150", 
                         "flow_meter_end_150", "flow_meter_speed", "field_comments")], 
                  histrots[,c("sampling_event_date", "sampling_area_number", "flow_meter_start_150", 
                              "flow_meter_end_150", "flow_meter_speed", "field_comments")])
 
+##Merge rotations data with zoop raw data
 zoop <- merge(zoopdat[zoopdat$net_mesh == "150",], ltdfull, 
               by.x = c("station_id", "sample_date"), by.y = c("sampling_area_number", "sampling_event_date"), all.x = T)
 
@@ -277,4 +222,7 @@ ggplot(zoop, aes(x = CPUE)) + geom_histogram() + scale_x_log10() + facet_wrap(st
 zoop$jday <- as.integer(format(zoop$sample_date, format = "%j"))
 zoop$Week <- as.integer(format(zoop$sample_date, format = "%W"))
 zoop <- zoop[is.na(zoop$count) == F,]
-save(zoop, file = "data/NDFS2017-2023_zoop.Rdata")
+
+if(readline(prompt = "Save data? (y/n): ") == "y"){
+  save(zoop, file = "data/NDFS2017-2023_zoop.Rdata")
+  write.csv(zoop, file = "data/NDFS2017-2023_zoop.csv", row.names = F)}
