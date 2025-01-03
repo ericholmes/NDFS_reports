@@ -916,17 +916,17 @@ zoopcontam_id <- zoopcontam_merge %>% group_by(Site, dist, compound2, pesticide_
   summarize(totconc = sum(Result))
 zoopcontam_id$site_fac <- factor(zoopcontam_id$Site, levels = c("RCS", "RD22", "LIS", "STTD", "BL5", "RYI","SHR"))
 
-# if(saveOutput == T){png(paste("figures/NDFS2023_Fig8a_zoopcontaminant_wq%03d.png", sep = ""), 
-#                         height = 6, width = 7, unit = "in", res = 1000, family = "serif")}
+if(saveOutput == T){png(paste("figures/NDFS2023_Fig8a_zoopcontaminant_wq%03d.png", sep = ""),
+                        height = 6, width = 7, unit = "in", res = 1000, family = "serif")}
 
 ggplot(zoopcontam_id, aes(x = reorder(compound2, -totconc), y = totconc)) + 
   geom_bar(stat = "identity") + scale_y_log10() + facet_grid(site_fac ~ pesticide_group, scales = "free") +
-  labs(y = "Total concentration (ng/L)", x = "Compound") +
+  labs(y = "Total concentration (ng/g)", x = "Compound") +
   theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggplot(zoopcontam_id, aes(x = reorder(compound2, -totconc), y = totconc, fill = pesticide_group)) + 
   geom_bar(stat = "identity") + scale_y_log10() + facet_grid(site_fac ~ ., scales = "fixed") +
-  labs(y = "Total concentration (ng/L)", x = "Compound", fill = "Pesticide class") +
+  labs(y = "Total concentration (ng/g)", x = "Compound", fill = "Pesticide class") +
   scale_fill_brewer(palette = "Set1") +
   theme_bw() + theme(axis.text.x = element_text(angle = 55, hjust = 1),
                      legend.position = "bottom")
@@ -993,7 +993,7 @@ tssmean <- tss %>% group_by(station_name.y, week) %>% summarize(meanres = mean(r
 zoopcontam_dateboolmergetss <- merge(zoopcontam_datebool, tssmean, 
                                   by.x = c("Site", "week"), by.y = c("station_name.y", "week"), all.x = T)
 # good one: "Dissolved tss (SiO2)", 
-ggplot(zoopcontam_dateboolmergetss, aes(x = meanres, y = tot)) + geom_point(aes(color = Site)) + theme_bw() +
+ggplot(zoopcontam_dateboolmergesi, aes(x = meanres, y = tot)) + geom_point(aes(color = Site)) + theme_bw() +
   stat_smooth(method = "lm", aes(color = Site), se = F) + stat_smooth(method = "lm", color = "black", linewidth = 2) +
   scale_color_brewer(palette = "Set1")
 

@@ -255,8 +255,8 @@ zoop <- zoop[is.na(zoop$count) == F,]
 
 ##Exclude RVB data from 2016-7-7 due to suspiciously low flow meter rotations (87)
 rvbbad <- zoop[(zoop$station_id %in% "RVB" & zoop$sample_date %in% as.Date("2016-07-07")),]
-zoop <- zoop[!(zoop$station_id %in% "RVB" & zoop$sample_date %in% as.Date("2016-07-07")),]
+# zoop <- zoop[!(zoop$station_id %in% "RVB" & zoop$sample_date %in% as.Date("2016-07-07")),]
 
 if(readline(prompt = "Save data? (y/n): ") == "y"){
   save(zoop, file = "data/NDFS2016-2023_zoop.Rdata")
-  write.csv(zoop, file = "data/NDFS2017-2023_zoop.csv", row.names = F)}
+  write.csv(zoop, file = "data/NDFS2016-2023_zoop.csv", row.names = F)}
