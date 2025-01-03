@@ -1,0 +1,14 @@
+Site/dates that appear in the new compiled zoop data but not the old
+
+"2017-08-31 I-80" :: Looks like a mislabeled station ID issue (I-80 instead of I80)
+"2017-09-13 I-80"  :: Looks like a mislabeled station ID issue (I-80 instead of I80)
+"2019-09-17 RMB"  :: RMB might have been excluded from old dataset....or RCS relabeled? Issue unresolved
+"2017-09-27 STTD" :: 	Could it be a date error confused with 2017-9-20? 
+		 	Lower trophic data sheet exists for 9-20 but not 9-27
+			Also SHR sampled 9-19 but not 9-26
+
+2019-9-17 RCS is duplicated in the historical rotations dataset::2 mesonet rotation entries
+	Should be 922019 - 924000 = 1981 revs, 
+
+# Fix I80 mislabeling isssue with:
+zoop$station_id <- ifelse(zoop$station_id == "I-80", "I80", zoop$station_id)
